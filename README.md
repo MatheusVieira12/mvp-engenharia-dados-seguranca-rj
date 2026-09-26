@@ -152,21 +152,21 @@ Linhagem: união das combinações (ano, mês) de silver.dp_municipio e silver.o
 
 dim_municipio
 
-Coluna	Tipo	Descrição	Domínio
-fmun_cod	string	Código IBGE de 7 dígitos do município	ex: 3304557
-municipio	string	Nome do município	92 municípios do RJ
-regiao	string	Região de segurança pública	Capital / Baixada Fluminense / Grande Niterói / Interior
+Coluna	    Tipo	    Descrição	Domínio
+fmun_cod	  string	  Código IBGE de 7 dígitos do município	ex: 3304557
+municipio	  string	  Nome do município	92 municípios do RJ
+regiao	    string	  Região de segurança pública	Capital / Baixada Fluminense / Grande Niterói / Interior
 
 Linhagem: silver.ocorrencias_municipio, mantendo a classificação de região mais recente por município (proteção contra eventual reclassificação ao longo do tempo).
 
 fato_criminalidade_municipio (grão: fmun_cod × ano × mes)
 
-Coluna	Tipo	Descrição
-fmun_cod, fmun, regiao, ano, mes	string/int	Chave do grão + descritores herdados de silver.ocorrencias_municipio
-hom_doloso, lesao_corp_morte, latrocinio, hom_por_interv_policial	int	Componentes atômicos de letalidade violenta
-letalidade_violenta	int	Campo oficial do ISP-RJ (soma dos 4 componentes acima)
-tentat_hom, lesao_corp_dolosa, estupro	int	Violência não-letal, somadas em crimes_violentos
-crimes_violentos	int	Métrica derivada: hom_doloso + lesao_corp_morte + latrocinio + hom_por_interv_policial + tentat_hom + lesao_corp_dolosa + estupro. Usada na pergunta 1 (substitui letalidade_violenta como métrica principal, que fica disponível para comparação)
+Coluna	                                                          Tipo	                          Descrição
+fmun_cod, fmun, regiao, ano, mes	                              string/int	                      Chave do grão + descritores herdados de silver.ocorrencias_municipio
+hom_doloso, lesao_corp_morte, latrocinio, hom_por_interv_policial	int	                            Componentes atômicos de letalidade violenta
+letalidade_violenta	                                              int	                            Campo oficial do ISP-RJ (soma dos 4 componentes acima)
+tentat_hom, lesao_corp_dolosa, estupro	                          int	                                                          Violência não-letal, somadas em crimes_violentos
+crimes_violentos	                                                                                 int	Métrica derivada: hom_doloso + lesao_corp_morte + latrocinio + hom_por_interv_policial + tentat_hom + lesao_corp_dolosa + estupro. Usada na pergunta                                                                                                       1 (substitui letalidade_violenta como métrica principal, que fica disponível para comparação)
 roubo_rua, roubo_comercio, roubo_veiculo, furto_veiculos, recuperacao_veiculos, total_furtos	int	Herdadas de silver.ocorrencias_municipio
 feminicidio, tentativa_feminicidio	int	Usadas na pergunta 5
 letalidade_violenta_taxa	double	Herdada de silver.taxas_municipio (única taxa mantida na Gold — as outras 52 foram descartadas por não serem usadas em nenhuma pergunta). Nula para 2025 e 2026 (fonte de taxas termina em 2024-12)
@@ -193,30 +193,30 @@ variacao_crimes_mes_seguinte	int	crimes_patrimoniais_mes_seguinte - crimes_patri
 
 Linhagem: silver.dp_municipio, sem join (apenas colunas derivadas por CISP/janela temporal), com a correção de encoding do campo regiao já herdada da Silver (ver Qualidade de Dados).
 
-[PREENCHER screenshot]: prints do Catalog Explorer (ou DESCRIBE TABLE EXTENDED) de cada tabela Gold, evidenciando schema e linhagem no Unity Catalog.
+[PREENCHER screenshot]: <img width="193" height="397" alt="image" src="https://github.com/user-attachments/assets/570e6ab3-0937-4050-b933-9357d1d4f692" />
+, evidenciando schema e linhagem no Unity Catalog.
 
-Pipeline de Dados (Etapa 4.4)
+### PIPELINE DE DADOS (Etapa 4.4)
 
 O pipeline foi ramificado em notebooks separados por camada e por fonte, seguindo a Arquitetura Medalhão:
 
-00_bronze_seguranca_rj_databricks.py      → lê os 3 CSVs (encoding ISO-8859-1) e grava em bronze.*
+00_bronze_seguranca_rj_databricks.py      → lê os 3 CSVs (encoding latin1 com separador ;) e grava em bronze.*
 01_silver_seguranca_rj.ipynb              → bronze.dp_municipio                                      → silver.dp_municipio
 02_silver_seguranca_rj.ipynb              → bronze.ocorrencias_municipio                             → silver.ocorrencias_municipio
 03_silver_seguranca_rj.ipynb              → bronze.taxas_municipio                                   → silver.taxas_municipio
-04_gold_seguranca_rj_databricks.py        → as 3 tabelas silver → 2 dimensões + 2 fatos em gold.*
-05_analise_seguranca_rj_databricks.py     → qualidade de dados (Gold) + consultas das 6 perguntas
+04_gold_seguranca_rj.py        → as 3 tabelas silver → 2 dimensões + 2 fatos em gold.*
+05_analise_seguranca_rj.py     → qualidade de dados (Gold) + consultas das 6 perguntas
 
-Os notebooks 00, 04 e 05 estão no formato nativo de notebook-fonte do Databricks (# Databricks notebook source / # COMMAND ----------); os 01–03 são .ipynb exportados diretamente do workspace. Ambos os formatos são reconhecidos pelo importador do Databricks — a escolha foi só uma questão de qual ferramenta gerou o arquivo primeiro.
 
 Optou-se por um notebook por tabela/camada (em vez de um único notebook monolítico) para isolar responsabilidades: cada notebook Silver trata uma única fonte, o que facilita debugar problemas de qualidade específicos de cada arquivo (como ocorreu com a duplicidade e o encoding, ambos isolados a uma única fonte).
 
 Principais transformações por notebook:
 
-00 (Bronze): leitura dos 3 CSVs com delimiter=";" e encoding="ISO-8859-1" (usar UTF-8 aqui reproduziria o mesmo tipo de corrupção de acentuação corrigido na Silver), gravação em mode("overwrite") para manter a ingestão idempotente (os CSVs trazem o histórico completo a cada download, não são incrementais — append duplicaria tudo a cada execução), e validação de contagem de linhas contra o total esperado de cada arquivo.
+00 (Bronze): leitura dos 3 CSVs com delimiter=";" e encoding= " latin1 " (usar UTF-8 aqui reproduziria o mesmo tipo de corrupção de acentuação corrigido na Silver), gravação em mode("overwrite") para manter a ingestão idempotente (os CSVs trazem o histórico completo a cada download, não são incrementais — append duplicaria tudo a cada execução), e validação de contagem de linhas contra o total esperado de cada arquivo.
 01 (dp_municipio): tipagem de códigos (cisp, aisp, risp, mcirc) como string, tratamento de nulos por coalesce para 0 em 12 colunas (drogas, bicicleta, feminicídio, atividade policial — nulas antes da data de início de registro de cada indicador), remoção de duplicidade por revisão de fase, e correção do encoding do campo regiao (ver Qualidade de Dados para os dois problemas).
 02 (ocorrencias_municipio): tipagem de fmun_cod como string, tratamento de nulos em feminicidio/tentativa_feminicidio, criação de data_referencia a partir de ano+mes.
 03 (taxas_municipio): conversão de separador decimal (vírgula → ponto) e cast para double em 53 colunas de taxa, tratamento de 3 nulos em regiao.
-04 (Gold): validação de schema (colunas obrigatórias — a execução para com erro se alguma faltar), validação de duplicidade de chave em cada tabela de origem e em cada fato gerado (também para a execução em caso de falha), checagem de consistência entre letalidade_violenta e seus 4 componentes documentados, construção das 2 dimensões e 2 fatos com as métricas derivadas (crimes_violentos, atividade_policial, crimes_patrimoniais, indice_recuperacao_veiculos), e limpeza de uma tabela dim_cisp de uma versão anterior do modelo (DROP TABLE IF EXISTS).
+04 (Gold): validação de schema (colunas obrigatórias — a execução para com erro se alguma faltar), validação de duplicidade de chave em cada tabela de origem e em cada fato gerado (também para a execução em caso de falha), checagem de consistência entre letalidade_violenta e seus 4 componentes documentados, construção das 2 dimensões e 2 fatos com as métricas derivadas (crimes_violentos, atividade_policial, crimes_patrimoniais, indice_recuperacao_veiculos).
 05 (Análise): perfil estatístico e outliers (IQR) das 4 métricas centrais da Gold, e as consultas/gráficos que respondem cada uma das 6 perguntas de negócio.
 
 Referência aos scripts no GitHub: [PREENCHER links para cada notebook].

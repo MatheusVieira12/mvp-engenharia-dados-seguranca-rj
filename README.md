@@ -2,28 +2,40 @@
 
 MVP Engenharia de Dados — Criminalidade no Estado do Rio de Janeiro
 
+Sprint: Engenharia de Dados (40530010057_20260_01)
+
 ALUNO: MATHEUS GABRIEL VIEIRA COIMBRA
 
+github: https://github.com/MatheusVieira12
 
 Pipeline de dados construído no Databricks Free Edition, usando dados públicos do Instituto de Segurança Pública do Rio de Janeiro (ISP-RJ), para entender a evolução da criminalidade no estado, identificar concentrações geográficas de crime e investigar a relação entre atividade policial e indicadores de criminalidade.
 
-[PREENCHER] Link do repositório GitHub / Databricks Repos: [PREENCHER] Link do workspace Databricks (se aplicável):
+https://github.com/MatheusVieira12/mvp-engenharia-dados-seguranca-rj/edit/main/README.md  / Databricks Repos: [PREENCHER] Link do workspace Databricks (se aplicável):
 
 Contexto de Negócio e Perguntas (Etapa 2 e 4.1)
 Problema
 
 Entender como a criminalidade no Estado do Rio de Janeiro evoluiu ao longo de mais de duas décadas, identificar onde ela se concentra geograficamente e verificar se há indícios de que a atividade policial (prisões, apreensões, mandados cumpridos) está associada a variações subsequentes nos indicadores de crime.
 
-Perguntas de negócio
-1) Como o volume de crimes violentos evoluiu por região do estado (Capital, Baixada Fluminense, Grande Niterói, Interior) entre 2003 e 2026? (métrica composta: homicídio doloso, lesão corporal seguida de morte, latrocínio, morte por intervenção policial, tentativa de homicídio, lesão corporal dolosa e estupro — ver definição na seção de Modelagem)
-2) Quais CISPs (delegacias) da Capital concentram a maior parte dos crimes patrimoniais (roubo de rua + furtos)? A distribuição é uniforme ou concentrada em poucas delegacias? Meses com mais atividade policial (prisões em flagrante + cumprimento de mandado de prisão) estão associados a variação nos crimes patrimoniais do mês seguinte?
-3) O índice de recuperação de veículos está subindo, caindo ou estável ao longo dos anos e entre regiões?
-4) Como feminicídio e tentativa de feminicídio evoluíram desde que passaram a ser registrados oficialmente (2015)? Há concentração em regiões específicas?
-5) Existe sazonalidade mensal em roubo de rua e roubo a estabelecimento comercial ao longo do ano civil?
+### Perguntas de negócio
+
+1. Como o volume de crimes violentos evoluiu por região do Estado do Rio de Janeiro entre 2003 e 2026?
+
+2. Quais CISPs da Capital concentram os maiores volumes de crimes patrimoniais, considerando roubo de rua e furtos?
+
+3. Existe associação entre a atividade policial de um mês, medida por prisões em flagrante e cumprimento de mandados de prisão, e a quantidade de crimes patrimoniais registrada no mês seguinte?
+
+4. Como o índice de recuperação de veículos evoluiu ao longo dos anos e entre as regiões?
+
+5. Como evoluíram mensalmente os registros de feminicídio e tentativa de feminicídio a partir de outubro de 2024?
+
+6. Quais meses apresentam os maiores registros de roubo de rua e roubo a estabelecimento comercial em cada ano, e esses meses de maior ocorrência se repetem ao longo dos anos?
 
 Nem todas as perguntas precisam ser respondidas com a mesma profundidade — a pergunta 3, em particular, é tratada como uma associação temporal exploratória, não como prova de causalidade (o nome "efetividade policial", usado numa versão inicial deste trabalho, foi deliberadamente evitado — ver ressalva completa na seção de Análise).
 
-Fontes de dados e contexto
+
+### FONTES DE DADOS E CONTEXTO
+
 
 Todos os dados vêm do Instituto de Segurança Pública do Rio de Janeiro (ISP-RJ), autarquia vinculada à Secretaria de Estado de Segurança Pública, responsável por produzir e divulgar as estatísticas criminais oficiais do estado. Três arquivos foram utilizados:
 
@@ -36,12 +48,13 @@ Cada arquivo tem ~55–61 colunas, cobrindo desde crimes violentos (homicídio d
 
 Observação importante de cobertura: as três fontes não cobrem o mesmo período. A base de CISP vai de 2003 a 2026 (é a série histórica mais longa); a de município em contagem vai de 2014 a 2026; e a de município em taxa termina em dezembro de 2024 — provavelmente porque a taxa depende de estimativas populacionais do IBGE, que têm defasagem de publicação maior que os registros de ocorrência. Essa diferença de cobertura foi tratada explicitamente na Gold (ver seção de Qualidade de Dados).
 
-Licença de uso
+### LICENÇA DE USO
 
 Os dados são publicados pelo ISP-RJ como dados abertos, no âmbito do Plano de Dados Abertos do Governo do Estado do Rio de Janeiro, com base na Lei de Acesso à Informação (Lei Federal nº 12.527/2011) e no Decreto Estadual nº 46.475/2018, que estabelecem o princípio da transparência ativa da administração pública. Os conjuntos de dados do ISP têm nível de acesso "Público" no catálogo oficial (dadosabertos.rj.gov.br) e estão disponíveis livremente no site do ISP (https://www.ispdados.rj.gov.br/) para uso por sociedade, pesquisadores e jornalistas. Não foi identificada uma licença Creative Commons explícita nos arquivos — o uso é amparado pelo caráter público e pela transparência ativa exigida por lei, mas recomenda-se citar o ISP-RJ como fonte em qualquer publicação derivada.
 
 
-CARGA DOS DADOS (Etapa 4.2)
+### CARGA DOS DADOS (Etapa 4.2)
+
 
 Os três arquivos CSV foram baixados diretamente do site do ISP-RJ e enviados para o volume do Unity Catalog do Databricks Free Edition 
 caminho: 
@@ -69,9 +82,6 @@ projeto_seguranca_rj.bronze.taxas_municipio
 <img width="1342" height="489" alt="image" src="https://github.com/user-attachments/assets/1fb44515-52d7-49ca-b6b5-227b899def94" />
 
 
-
-[PREENCHER screenshot]: print do Catalog Explorer mostrando as 3 tabelas Bronze persistidas, com contagem de linhas batendo com os CSVs originais (38.958 / 13.892 / 12.144).
-
 Modelagem e Catálogo de Dados (Etapa 4.3)
 Modelo escolhido
 
@@ -87,7 +97,7 @@ Decisão de modelagem: sem dim_cisp. Uma versão inicial deste trabalho tinha um
 Simplicidade proporcional ao escopo do MVP — com uma única fato usando esses atributos, uma dimensão separada só adiciona um join sem trazer benefício de normalização real.
 Fidelidade histórica — se um CISP mudar de circunscrição municipal ao longo dos 23 anos de série, manter o atributo dentro da própria linha do fato preserva o valor como ele foi registrado naquele mês. Uma dimensão separada exigiria escolher uma única versão do atributo por CISP (ex.: a mais recente), o que reescreveria retroativamente o histórico.
 
-Isso torna o modelo, tecnicamente, um híbrido estrela/flat — mais próximo do "Modelo Flat (por conceito)" citado no enunciado do trabalho para dados de Data Lake — e não um Esquema Estrela em sua forma pura. É uma simplificação deliberada e documentada, não um esquecimento.
+Isso torna o modelo, tecnicamente, um híbrido estrela/flat — mais próximo do "Modelo Flat (por conceito)" citado no enunciado do trabalho para dados de Data Lake — e não um Esquema Estrela em sua forma pura. É uma simplificação deliberada e documentada.
 
 Limitação de modelagem: fato_criminalidade_cisp não possui o código IBGE do município (fmun_cod), apenas o nome do município como texto — a base de CISP não traz esse código. Por isso, não há chave direta entre fato_criminalidade_cisp e dim_municipio; análises que cruzam as duas granularidades usam o campo regiao, que existe em ambas as fontes.
 
@@ -97,9 +107,10 @@ bronze.* (as 3 tabelas)
 Réplica fiel dos CSVs originais + colunas de controle. Contexto, colunas, tipos e domínio de valores de cada uma das ~55-61 variáveis de indicadores criminais estão descritos nos dicionários oficiais do ISP-RJ, anexados ao repositório:
 
 Tabela Bronze	Dicionário de referência
-dp_municipio	BaseDpDicionarioDeVariaveis.xlsx
-ocorrencias_municipio	BaseMunicípioMensalDicionarioDeVariaveis.xlsx
-taxas_municipio	DicionarioDeVariaveisBaseMunicípioTaxaMês.xlsx
+
+dp_municipio	          BaseDpDicionarioDeVariaveis.xlsx
+ocorrencias_municipio	  BaseMunicípioMensalDicionarioDeVariaveis.xlsx
+taxas_municipio	        DicionarioDeVariaveisBaseMunicípioTaxaMês.xlsx
 
 Grupos de variáveis presentes nas três tabelas (conforme dicionário oficial):
 
@@ -188,12 +199,12 @@ Pipeline de Dados (Etapa 4.4)
 
 O pipeline foi ramificado em notebooks separados por camada e por fonte, seguindo a Arquitetura Medalhão:
 
-00_bronze_seguranca_rj_databricks.py    → lê os 3 CSVs (encoding ISO-8859-1) e grava em bronze.*
-01_silver_seguranca_rj.ipynb            → bronze.dp_municipio          → silver.dp_municipio
-02_silver_seguranca_rj.ipynb            → bronze.ocorrencias_municipio → silver.ocorrencias_municipio
-03_silver_seguranca_rj.ipynb            → bronze.taxas_municipio       → silver.taxas_municipio
-04_gold_seguranca_rj_databricks.py      → as 3 tabelas silver → 2 dimensões + 2 fatos em gold.*
-05_analise_seguranca_rj_databricks.py   → qualidade de dados (Gold) + consultas das 6 perguntas
+00_bronze_seguranca_rj_databricks.py      → lê os 3 CSVs (encoding ISO-8859-1) e grava em bronze.*
+01_silver_seguranca_rj.ipynb              → bronze.dp_municipio                                      → silver.dp_municipio
+02_silver_seguranca_rj.ipynb              → bronze.ocorrencias_municipio                             → silver.ocorrencias_municipio
+03_silver_seguranca_rj.ipynb              → bronze.taxas_municipio                                   → silver.taxas_municipio
+04_gold_seguranca_rj_databricks.py        → as 3 tabelas silver → 2 dimensões + 2 fatos em gold.*
+05_analise_seguranca_rj_databricks.py     → qualidade de dados (Gold) + consultas das 6 perguntas
 
 Os notebooks 00, 04 e 05 estão no formato nativo de notebook-fonte do Databricks (# Databricks notebook source / # COMMAND ----------); os 01–03 são .ipynb exportados diretamente do workspace. Ambos os formatos são reconhecidos pelo importador do Databricks — a escolha foi só uma questão de qual ferramenta gerou o arquivo primeiro.
 

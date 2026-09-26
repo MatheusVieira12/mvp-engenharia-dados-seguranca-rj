@@ -419,11 +419,15 @@ Os dados de 2026 são parciais, portanto o mês de maior ocorrência desse ano a
 
 
 
-Autoavaliação
+## Autoavaliação
 
-Objetivos atingidos: [PREENCHER] — das 6 perguntas propostas, quais foram respondidas de forma satisfatória e quais ficaram incompletas ou exigiriam dados adicionais (ex.: população por município para normalizar comparações regionais na pergunta 1; nomes de delegacias para a pergunta 2).
+De forma geral, considero que os objetivos do MVP foram atingidos. Foi possível construir um pipeline completo no Databricks, passando pelas camadas Bronze, Silver e Gold, organizar os dados em tabelas fato e dimensão e responder às seis perguntas de negócio propostas no início do trabalho.
 
-Dificuldades encontradas: [PREENCHER] — por exemplo: identificar a causa da duplicidade em dp_municipio (exigiu investigar o significado do campo fase no dicionário de variáveis); descobrir o problema de encoding em regiao, que não aparecia em nenhuma checagem de nulos.
+As análises permitiram observar a evolução dos crimes violentos por região, identificar as CISPs da Capital com maior volume de crimes patrimoniais, verificar a associação entre atividade policial e crimes do mês seguinte, analisar o índice de recuperação de veículos, acompanhar os registros de feminicídio e tentativa de feminicídio e verificar a repetição de meses com maiores registros de roubo de rua e roubo a comércio.
+
+A maior dificuldade durante o desenvolvimento foi trabalhar com o PySpark e entender como organizar corretamente as transformações entre as camadas. No início, montar as tabelas Silver e Gold exigiu bastante atenção, principalmente para definir as chaves, fazer os tratamentos sem perder informações e entender como os dados deveriam chegar até a etapa de análise. Outra dificuldade importante foi a qualidade da base original. Algumas tabelas estavam bastante desorganizadas e apresentavam problemas como duplicidades, valores nulos, diferenças de tipo, campos com vírgula como separador decimal e problemas de encoding. Na base por CISP, por exemplo, foi necessário entender o campo `fase` para identificar por que existiam registros repetidos e manter a versão mais atualizada de cada registro. Também foi necessário corrigir o nome de Grande Niterói, que aparecia com problemas de codificação. :chatgpt-content-reference{index="1"}
+
+Esses problemas fizeram com que a etapa Silver fosse uma das partes mais trabalhosas do projeto, pois foi necessário limpar, padronizar e validar os dados antes de utilizá-los. Na Gold, a principal dificuldade foi transformar essas tabelas já tratadas em uma estrutura que realmente ajudasse a responder às perguntas, criando as dimensões, as tabelas fato e as métricas derivadas utilizadas nas análises. Apesar das dificuldades, o trabalho ajudou a entender melhor a função de cada camada da arquitetura Medalhão e a importância de não realizar apenas transformações técnicas, mas também validar se os dados fazem sentido antes de utilizá-los em uma análise.
 
 Trabalhos futuros:
 

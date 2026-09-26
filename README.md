@@ -343,50 +343,81 @@ letalidade_violenta tem a maior % de outliers (6,87%), mas os valores absolutos 
 
 [PREENCHER]: se quiser, cruze os outliers de crimes_patrimoniais com o ranking de CISPs da pergunta 2 — é esperado que os mesmos poucos CISPs concentrem a maior parte dos 1.310 outliers, o que reforçaria a resposta da pergunta 2 com evidência estatística, não só ranking.
 
-Análise de Dados (Etapa 4.5)
+### ANÁLISE DE DADOS (Etapa 4.5)
 
 Consultas e gráficos completos estão no notebook 05_analise_seguranca_rj_databricks.py. Resumo por pergunta (screenshots dos resultados devem ser colados abaixo de cada uma):
 
-Pergunta 1 — Crimes violentos por região (2003–2026)
+### Pergunta 1 — Como o volume de crimes violentos evoluiu por região do Estado do Rio de Janeiro entre 2003 e 2026?
 
-<img width="1107" height="503" alt="image" src="https://github.com/user-attachments/assets/34502a12-8c03-4f04-b3a9-e9be37007826" />
+<img width="1102" height="504" alt="image" src="https://github.com/user-attachments/assets/7faf3e9a-a6bc-4dba-969e-f59108f39b1d" />
+
+A análise mostra que a evolução dos registros de crimes violentos não ocorreu da mesma forma em todas as regiões do Estado do Rio de Janeiro. Cada região atingiu seu maior volume em um momento diferente da série histórica. A Capital apresentou o maior pico absoluto, com 40.899 registros em 2013. No Interior, o maior valor foi observado em 2014, com 29.545 registros. A Baixada Fluminense alcançou seu pico em 2012, com 26.032 registros, enquanto Grande Niterói apresentou seu maior volume em 2014, com 9.387 registros. Esses resultados mostram que a concentração dos registros varia tanto entre as regiões quanto ao longo do tempo. A Capital apresentou o maior volume absoluto entre as quatro regiões, mas essa comparação deve ser feita com cautela, pois os valores utilizados são contagens absolutas e não foram normalizados pela população ou pela quantidade de CISPs de cada região. Também foi verificada a cobertura temporal dos dados. Os anos anteriores possuem os 12 meses disponíveis, enquanto 2026 apresenta registros somente até agosto. Por isso, o total de 2026 não deve ser comparado diretamente com os anos completos como evidência de aumento ou redução da criminalidade. Assim, a análise permite identificar os principais picos históricos e as diferenças regionais na evolução dos registros, mas comparações proporcionais entre as regiões exigiriam indicadores normalizados, como taxas por população.
+
+<img width="241" height="87" alt="image" src="https://github.com/user-attachments/assets/a210f1c1-7d27-4b2c-a8b1-0ff57236dc52" />
 
 
-[PREENCHER discussão]: qual região tem a maior queda/alta proporcional desde o pico? Os valores são absolutos (não normalizados por população/número de CISPs) — comente essa limitação ao comparar regiões de tamanhos diferentes. A consulta também traz letalidade_violenta_total lado a lado — vale comentar se a tendência muda quando se olha só para os casos letais (mais graves) versus o conjunto mais amplo de violência.
+### Pergunta 2 — Quais CISPs da Capital concentram os maiores volumes de crimes patrimoniais, considerando roubo de rua e furtos?
 
-Pergunta 2 — CISPs da Capital com maior concentração de crimes patrimoniais
+<img width="664" height="393" alt="image" src="https://github.com/user-attachments/assets/b6666d6f-384b-4311-aa15-eafedc4e0843" />
 
-[PREENCHER screenshot do gráfico]
+A análise dos registros de crimes patrimoniais da Capital, considerando a soma de `roubo_rua` e `total_furtos`, mostrou que os maiores volumes estão concentrados em algumas CISPs específicas. No período analisado, as cinco CISPs com maior volume foram a **CISP 5 (Centro/Lapa)**, **CISP 16 (Barra da Tijuca)**, **CISP 35 (Campo Grande)**, **CISP 34 (Bangu)** e **CISP 12 (Copacabana/Leme)**. Entre elas, a CISP 5 apresentou o maior volume acumulado de registros.
 
-[PREENCHER discussão]: qual percentual os 5 CISPs mais críticos representam do total da Capital? (o notebook já calcula esse número). Se cruzar com a análise de outliers da seção de Qualidade de Dados, comente se os CISPs do ranking são os mesmos que concentram os outliers de crimes_patrimoniais.
+As cinco CISPs com maior volume concentraram **22,1% de todos os registros de crimes patrimoniais da Capital**. Esse resultado mostra que existe concentração em determinadas circunscrições, embora ela não esteja limitada apenas a um pequeno grupo, já que aproximadamente 77,9% dos registros estão distribuídos entre as demais CISPs. A análise utiliza valores absolutos acumulados, portanto os resultados indicam onde houve maior quantidade de registros, mas não significam necessariamente maior risco proporcional. Fatores como população residente, circulação diária de pessoas, atividade comercial e extensão territorial das CISPs não foram considerados nessa comparação.
 
-Pergunta 3 — Associação entre atividade policial e crimes patrimoniais do mês seguinte
 
-[PREENCHER screenshot do gráfico e do valor de correlação]
+### Pergunta 3 — Existe associação entre a atividade policial de um mês e a quantidade de crimes patrimoniais registrada no mês seguinte?
 
-Ressalva metodológica obrigatória para a discussão: tratada como associação temporal, não causalidade. Uma correlação positiva entre atividade policial e crime do mês seguinte pode significar o oposto do que parece à primeira vista — mais prisões tendem a ocorrer justamente onde já há mais criminalidade (causalidade reversa), não necessariamente que prender mais gera mais crime depois. Comente o resultado com essa ressalva, e compare o padrão entre regiões (o notebook já calcula a correlação por região separadamente). Note também que crimes_patrimoniais_mes_seguinte só é preenchida quando o próximo registro do CISP é realmente o mês seguinte (checagem de continuidade feita na Gold) — meses com lacuna na série ficam de fora do cálculo, em vez de comparar meses não consecutivos por engano.
+<img width="560" height="404" alt="image" src="https://github.com/user-attachments/assets/4391b002-7ddb-443e-ab69-7e42e0985924" />
 
-Pergunta 4 — Evolução do índice de recuperação de veículos
+A análise comparou a atividade policial registrada em cada CISP, medida pela soma de prisões em flagrante (apf) e cumprimento de mandados de prisão (cmp), com a quantidade de crimes patrimoniais registrada no mês seguinte.
+A correlação geral encontrada foi de 0,528, indicando uma associação positiva de magnitude moderada entre as duas variáveis. Isso significa que, nos dados analisados, meses com maior atividade policial tendem a estar associados a maiores volumes de crimes patrimoniais no mês seguinte. Quando a análise foi separada por região, os valores encontrados foram:
 
-[PREENCHER screenshot do gráfico]
+- Baixada Fluminense: 0,654
+- Interior: 0,638
+- Grande Niterói: 0,555
+- Capital: 0,450
 
-[PREENCHER discussão]: o índice está subindo, caindo ou estável? Há diferença entre regiões? Mencione o percentual de linhas com índice acima de 1 (calculado na seção de Qualidade de Dados) como limitação metodológica — parte do índice reflete recuperações de veículos furtados em meses anteriores, não só do mês corrente.
+A associação foi positiva em todas as regiões. A Baixada Fluminense apresentou a maior correlação, seguida pelo Interior e por Grande Niterói. A Capital apresentou o menor valor entre as quatro regiões. Mesmo assim, esse resultado não deve ser interpretado como uma relação de causa e efeito. A correlação mostra apenas que as duas variáveis variam juntas em certa medida. Regiões com maiores níveis de criminalidade também podem apresentar maior atuação policial, o que pode contribuir para essa associação observada. Além disso, a análise considerou somente os casos em que o registro seguinte correspondia realmente ao mês seguinte para o mesmo CISP, evitando comparações incorretas em períodos com lacunas na série.
 
-Pergunta 5 — Feminicídio e tentativa de feminicídio desde 2015
+Assim, os dados indicam uma associação temporal positiva entre atividade policial e crimes patrimoniais do mês seguinte, mas não permitem concluir que o aumento da atividade policial provoque aumento ou redução da criminalidade.
 
-[PREENCHER screenshot do gráfico e do ranking por região]
+### Pergunta 4 — Como o índice de recuperação de veículos evoluiu ao longo dos anos e entre as regiões?
 
-[PREENCHER discussão]: a série está subindo, caindo ou estável desde que passou a ser registrada? Qual região concentra mais casos?
+<img width="832" height="395" alt="image" src="https://github.com/user-attachments/assets/127bf4c9-aeda-420b-8c26-39e9127b2cbc" />
 
-Pergunta 6 — Sazonalidade mensal (roubo de rua vs. roubo a comércio)
+O índice de recuperação de veículos apresentou variações importantes entre as regiões ao longo do período analisado. Entre 2019 e 2022, houve queda em boa parte das regiões, seguida por recuperação nos anos posteriores. O Interior apresentou a recuperação mais forte, chegando a aproximadamente 0,73 em 2026. Capital, Baixada Fluminense e Grande Niterói também apresentaram melhora após 2022, mas de forma mais gradual. Também foram identificadas **899 linhas com índice acima de 1, correspondendo a 9,42% dos registros com índice calculado**. Esses casos não foram considerados automaticamente como erro, pois veículos recuperados em um mês podem ter sido roubados ou furtados em períodos anteriores.
 
-[PREENCHER screenshot do gráfico]
+Os dados de 2026 estão incompletos, portanto devem ser interpretados com cautela.
 
-[PREENCHER discussão]: existe pico em algum mês específico (ex.: dezembro)? O padrão é igual para os dois tipos de roubo?
+### Pergunta 5 — Como evoluíram mensalmente os registros de feminicídio e tentativa de feminicídio a partir de outubro de 2024?
 
-Discussão geral
+<img width="810" height="372" alt="image" src="https://github.com/user-attachments/assets/0474e6ba-1a5f-42f6-aaa6-840aeaec83ad" />
 
-[PREENCHER]: conecte as 6 respostas de volta ao problema original — o que esse conjunto de achados diz, no geral, sobre a dinâmica da criminalidade no RJ e sobre a relação entre atividade policial e resultado de segurança pública?
+A partir de outubro de 2024, foram registrados **189 feminicídios** e **601 tentativas de feminicídio**. O maior número mensal de feminicídios ocorreu em **dezembro de 2025**, com **17 registros**, enquanto o maior número de tentativas ocorreu em **março de 2026**, com **40 registros**. Os dados mostram oscilações mensais, sem uma tendência contínua de crescimento ou queda. As tentativas de feminicídio permaneceram, em geral, acima dos registros de feminicídio. A análise considera somente o período a partir de outubro de 2024, e os dados de 2026 são parciais.
+
+<img width="526" height="464" alt="image" src="https://github.com/user-attachments/assets/c545171d-f3e7-4b90-b214-0b78a24049c5" />
+
+
+A análise considera somente os registros a partir de outubro de 2024, evitando interpretar os valores anteriores, que não possuem a mesma cobertura do indicador, como ausência de ocorrências. Os dados de 2026 também devem ser considerados como parciais, pois o ano ainda não está completo no conjunto analisado.
+
+### Pergunta 6 — Quais meses apresentam os maiores registros de roubo de rua e roubo a estabelecimento comercial em cada ano, e esses meses se repetem ao longo dos anos?
+
+<img width="670" height="330" alt="image" src="https://github.com/user-attachments/assets/5b9a8380-cd19-4277-9352-ebac72e4d24e" />
+
+<img width="676" height="317" alt="image" src="https://github.com/user-attachments/assets/ea398d87-7216-4023-9be1-845fbe4e8f45" />
+
+<img width="236" height="361" alt="image" src="https://github.com/user-attachments/assets/d2a4dc22-cf96-46c6-a536-28cbd89a2028" />
+
+<img width="327" height="622" alt="image" src="https://github.com/user-attachments/assets/52848f9a-25e6-44a6-adcb-30d26f2e9c2b" />
+
+
+A análise mostrou que os meses de maior ocorrência variam de um ano para outro, mas alguns se repetem com maior frequência. No roubo de rua, janeiro e março foram os meses que mais apareceram como o maior registro do ano, ocorrendo em 4 anos cada. Outubro e maio apareceram em 2 anos, enquanto julho apareceu uma vez.
+
+No roubo a estabelecimento comercial, janeiro, março e maio foram os meses mais recorrentes, aparecendo como o maior registro anual em 3 anos cada. Abril e setembro apareceram em 2 anos cada. Assim, não existe um único mês que concentre os maiores registros em todos os anos. Porém, a repetição de alguns meses, especialmente janeiro e março, indica um padrão sazonal parcial, que varia conforme o tipo de crime e o ano analisado.
+
+Os dados de 2026 são parciais, portanto o mês de maior ocorrência desse ano ainda pode mudar quando a série estiver completa.
+
+
 
 Autoavaliação
 

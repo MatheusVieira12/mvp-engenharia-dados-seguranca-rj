@@ -10,7 +10,8 @@ github: https://github.com/MatheusVieira12
 
 Pipeline de dados construído no Databricks Free Edition, usando dados públicos do Instituto de Segurança Pública do Rio de Janeiro (ISP-RJ), para entender a evolução da criminalidade no estado, identificar concentrações geográficas de crime e investigar a relação entre atividade policial e indicadores de criminalidade.
 
-https://github.com/MatheusVieira12/mvp-engenharia-dados-seguranca-rj/edit/main/README.md  / Databricks Repos: [PREENCHER] Link do workspace Databricks (se aplicável):
+*Repositório do Projeto*
+https://github.com/MatheusVieira12/mvp-engenharia-dados-seguranca-rj/edit/main/README.md 
 
 Contexto de Negócio e Perguntas (Etapa 2 e 4.1)
 Problema
@@ -46,7 +47,7 @@ BaseMunicipioTaxaMes.csv	Município × ano × mês	2014–2024	12.144	Mesmas var
 
 Cada arquivo tem ~55–61 colunas, cobrindo desde crimes violentos (homicídio doloso, latrocínio, letalidade violenta), crimes de trânsito, roubos e furtos (por modalidade), crimes contra o patrimônio, até indicadores de atividade policial (prisões, apreensões, mandados cumpridos). O dicionário oficial de cada arquivo está anexado ao repositório (BaseDpDicionarioDeVariaveis.xlsx, BaseMunicípioMensalDicionarioDeVariaveis.xlsx, DicionarioDeVariaveisBaseMunicípioTaxaMês.xlsx).
 
-Observação importante de cobertura: as três fontes não cobrem o mesmo período. A base de CISP vai de 2003 a 2026 (é a série histórica mais longa); a de município em contagem vai de 2014 a 2026; e a de município em taxa termina em dezembro de 2024 — provavelmente porque a taxa depende de estimativas populacionais do IBGE, que têm defasagem de publicação maior que os registros de ocorrência. Essa diferença de cobertura foi tratada explicitamente na Gold (ver seção de Qualidade de Dados).
+Observação importante de cobertura: as três fontes não cobrem o mesmo período. A base por CISP possui registros de 2003 a 2026, a base municipal de contagens cobre 2014 a 2026 e a base municipal de taxas possui dados até dezembro de 2024. Essa diferença de cobertura foi preservada no pipeline e considerada nas análises, sem preenchimento artificial dos períodos sem dados.
 
 ### LICENÇA DE USO
 
@@ -68,7 +69,7 @@ A partir daí, cada arquivo foi lido via Notebook (PySpark) e persistido como ta
 fonte_arquivo: nome do arquivo CSV de origem
 data_ingestao: timestamp de quando a ingestão foi executada
 
-Notebooks de ingestão Bronze: 01_bronze_seguranca_rj — referência no GitHub: [link].
+Notebook de ingestão Bronze:  [`01_bronze_seguranca_rj.ipynb`](notebooks/01_bronze_seguranca_rj.ipynb)
 
 Tabelas Bronze geradas:
 
@@ -82,10 +83,9 @@ projeto_seguranca_rj.bronze.taxas_municipio
 <img width="1342" height="489" alt="image" src="https://github.com/user-attachments/assets/1fb44515-52d7-49ca-b6b5-227b899def94" />
 
 
-Modelagem e Catálogo de Dados (Etapa 4.3)
-Modelo escolhido
+### MODELAGEM DE DADOS (Etapa 4.3)
 
-Foi adotada uma modelagem estrela simplificada dentro do Lakehouse: duas dimensões (tempo, município) e dois fatos, um por granularidade de análise (município e CISP).
+Modelo escolhido: Foi adotada uma modelagem estrela simplificada dentro do Lakehouse: duas dimensões (tempo, município) e dois fatos, um por granularidade de análise (município e CISP).
 
 dim_tempo                        (data_referencia, ano, mes, ano_mes, trimestre, semestre)
 dim_municipio                    (fmun_cod, municipio, regiao)
@@ -101,7 +101,8 @@ Isso torna o modelo, tecnicamente, um híbrido estrela/flat — mais próximo do
 
 Limitação de modelagem: fato_criminalidade_cisp não possui o código IBGE do município (fmun_cod), apenas o nome do município como texto — a base de CISP não traz esse código. Por isso, não há chave direta entre fato_criminalidade_cisp e dim_municipio; análises que cruzam as duas granularidades usam o campo regiao, que existe em ambas as fontes.
 
-Catálogo de Dados
+### CATÁLOGO DE DADOS
+
 bronze.* (as 3 tabelas)
 
 Réplica fiel dos CSVs originais + colunas de controle. Contexto, colunas, tipos e domínio de valores de cada uma das ~55-61 variáveis de indicadores criminais estão descritos nos dicionários oficiais do ISP-RJ, anexados ao repositório:
@@ -193,19 +194,20 @@ variacao_crimes_mes_seguinte	int	crimes_patrimoniais_mes_seguinte - crimes_patri
 
 Linhagem: silver.dp_municipio, sem join (apenas colunas derivadas por CISP/janela temporal), com a correção de encoding do campo regiao já herdada da Silver (ver Qualidade de Dados).
 
-[PREENCHER screenshot]: <img width="193" height="397" alt="image" src="https://github.com/user-attachments/assets/570e6ab3-0937-4050-b933-9357d1d4f692" />
-, evidenciando schema e linhagem no Unity Catalog.
+ <img width="193" height="397" alt="image" src="https://github.com/user-attachments/assets/570e6ab3-0937-4050-b933-9357d1d4f692" />
+
 
 ### PIPELINE DE DADOS (Etapa 4.4)
 
 O pipeline foi ramificado em notebooks separados por camada e por fonte, seguindo a Arquitetura Medalhão:
 
-00_bronze_seguranca_rj_databricks.py      → lê os 3 CSVs (encoding latin1 com separador ;) e grava em bronze.*
-01_silver_seguranca_rj.ipynb              → bronze.dp_municipio                                      → silver.dp_municipio
-02_silver_seguranca_rj.ipynb              → bronze.ocorrencias_municipio                             → silver.ocorrencias_municipio
-03_silver_seguranca_rj.ipynb              → bronze.taxas_municipio                                   → silver.taxas_municipio
-04_gold_seguranca_rj.py        → as 3 tabelas silver → 2 dimensões + 2 fatos em gold.*
-05_analise_seguranca_rj.py     → qualidade de dados (Gold) + consultas das 6 perguntas
+setup_crime.ipynb                    → preparação do ambiente e criação dos schemas bronze, silver e gold
+01_bronze_seguranca_rj.ipynb         → leitura dos 3 CSVs e persistência em bronze.*
+01_silver_seguranca_rj.ipynb         → bronze.dp_municipio → silver.dp_municipio
+02_silver_seguranca_rj.ipynb         → bronze.ocorrencias_municipio → silver.ocorrencias_municipio
+03_silver_seguranca_rj.ipynb         → bronze.taxas_municipio → silver.taxas_municipio
+04_gold_seguranca_rj.py              → 3 tabelas Silver → 2 dimensões + 2 fatos
+05_analise_seguranca_rj.py           → qualidade + respostas às 6 perguntas
 
 
 Optou-se por um notebook por tabela/camada (em vez de um único notebook monolítico) para isolar responsabilidades: cada notebook Silver trata uma única fonte, o que facilita debugar problemas de qualidade específicos de cada arquivo (como ocorreu com a duplicidade e o encoding, ambos isolados a uma única fonte).
@@ -217,15 +219,15 @@ Principais transformações por notebook:
 02 (ocorrencias_municipio): tipagem de fmun_cod como string, tratamento de nulos em feminicidio/tentativa_feminicidio, criação de data_referencia a partir de ano+mes.
 03 (taxas_municipio): conversão de separador decimal (vírgula → ponto) e cast para double em 53 colunas de taxa, tratamento de 3 nulos em regiao.
 04 (Gold): validação de schema (colunas obrigatórias — a execução para com erro se alguma faltar), validação de duplicidade de chave em cada tabela de origem e em cada fato gerado (também para a execução em caso de falha), checagem de consistência entre letalidade_violenta e seus 4 componentes documentados, construção das 2 dimensões e 2 fatos com as métricas derivadas (crimes_violentos, atividade_policial, crimes_patrimoniais, indice_recuperacao_veiculos).
-05 (Análise): perfil estatístico e outliers (IQR) das 4 métricas centrais da Gold, e as consultas/gráficos que respondem cada uma das 6 perguntas de negócio.
+05 (Análise): perfil estatístico e identificação de possíveis outliers pelo método IQR nas principais métricas utilizadas nas análises municipais e por CISP, além das consultas e visualizações utilizadas para responder às 6 perguntas de negócio.
 
 Referência aos scripts no GitHub: [PREENCHER links para cada notebook].
 
 [PREENCHER screenshot]: print do Catalog Explorer mostrando as tabelas silver.* e gold.* persistidas (ou o output da célula final do notebook 04, que lista as 4 tabelas Gold com suas contagens de linha).
 
-Qualidade de Dados (Etapa 4.5)
+### QUALIDADE DOS DADOS (Etapa 4.5)
 
-Três problemas reais de qualidade foram identificados e tratados ao longo do pipeline:
+Ao longo do pipeline foram identificados problemas de qualidade, diferenças de cobertura e situações que exigiram tratamento ou validação específica:
 
 1. Duplicidade por revisão de dados (fase) — dp_municipio
 
@@ -268,7 +270,55 @@ Isso não é tratado como erro; a Silver/Gold não corrige nem limita esse valor
 
 [PREENCHER]: rode a célula de checagem no 05_analise (indice_recuperacao_veiculos > 1) e registre aqui o percentual de linhas afetadas, para dimensionar o efeito antes de discutir a pergunta 4.
 
-Checagens de completude, consistência e unicidade
+7 Tratamento de valores nulos — feminicídio e tentativa de feminicídio
+
+Nas bases dp_municipio e ocorrencias_municipio, os campos feminicidio e tentativa_feminicidio apresentavam valores nulos em períodos anteriores à disponibilidade desses indicadores.
+
+Na camada Silver, esses valores foram tratados com coalesce, substituindo NULL por 0. Essa transformação evita problemas em operações posteriores de soma e agregação.
+
+Entretanto, os zeros anteriores ao período válido não são interpretados como ausência de ocorrências. Por esse motivo, a análise desses indicadores neste MVP considera somente os registros a partir de outubro de 2024.
+
+8 Tratamento das taxas — separador decimal e conversão para double
+
+Na tabela taxas_municipio, os valores numéricos foram disponibilizados utilizando vírgula como separador decimal, por exemplo "0,55".
+
+Para permitir operações matemáticas no Spark, a vírgula foi substituída por ponto e as 53 colunas de taxas foram convertidas para o tipo double.
+
+Exemplo:
+
+"0,55" → 0.55
+
+Esse tratamento permite realizar corretamente médias, comparações, ordenações e outras operações numéricas.
+
+### Valores nulos em `regiao` — taxas_municipio
+
+Foram identificados 3 registros com valor nulo no campo regiao da tabela taxas_municipio.
+
+Esses valores foram preenchidos com NAO_INFORMADO. Dessa forma, os registros foram preservados sem atribuir artificialmente uma região que não estava disponível na fonte.
+
+### Tipagem dos códigos identificadores
+
+Campos utilizados como códigos, como cisp, aisp, risp, mcirc e fmun_cod, foram convertidos para string.
+
+Apesar de serem compostos por números, esses campos funcionam como identificadores e não representam quantidades destinadas a cálculos matemáticos.
+
+9) Criação da data de referência mensal
+
+As bases utilizadas possuem granularidade mensal e apresentam os campos `ano` e `mes`, sem informação de dia.
+
+Para permitir o uso de funções temporais do Spark, foi criada a coluna `data_referencia` utilizando o primeiro dia de cada mês como data convencional de referência.
+
+Exemplo:
+
+`ano = 2024` e `mes = 10` → `data_referencia = 2024-10-01`
+
+O valor `01` não representa o dia em que a ocorrência aconteceu. Ele é utilizado apenas para transformar a combinação de ano e mês em uma data válida.
+
+Essa padronização facilita a ordenação cronológica, criação da dimensão de tempo, geração de gráficos de série temporal e operações como identificação do mês seguinte.
+
+
+### CHECAGENS DE COMPLETUDE, CONSITÊNCIA e UNICIDADE
+
 
 Além dos problemas acima, foram verificados sistematicamente em cada tabela Silver:
 
@@ -299,7 +349,8 @@ Consultas e gráficos completos estão no notebook 05_analise_seguranca_rj_datab
 
 Pergunta 1 — Crimes violentos por região (2003–2026)
 
-[PREENCHER screenshot do gráfico]
+<img width="1107" height="503" alt="image" src="https://github.com/user-attachments/assets/34502a12-8c03-4f04-b3a9-e9be37007826" />
+
 
 [PREENCHER discussão]: qual região tem a maior queda/alta proporcional desde o pico? Os valores são absolutos (não normalizados por população/número de CISPs) — comente essa limitação ao comparar regiões de tamanhos diferentes. A consulta também traz letalidade_violenta_total lado a lado — vale comentar se a tendência muda quando se olha só para os casos letais (mais graves) versus o conjunto mais amplo de violência.
 

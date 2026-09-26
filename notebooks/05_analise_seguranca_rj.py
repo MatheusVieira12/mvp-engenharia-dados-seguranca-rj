@@ -13,8 +13,10 @@
 # COMMAND ----------
 
 from pyspark.sql import functions as F
+from pyspark.sql import Window
 import pandas as pd
 import matplotlib.pyplot as plt
+
 
 pd.set_option("display.max_columns", None)
 
@@ -149,11 +151,11 @@ display(pergunta1_sdf)
 
 pivot1 = pergunta1_df.pivot(index="ano", columns="regiao", values="crimes_violentos_total")
 
-fig, ax = plt.subplots(figsize=(12, 6))
+fig, ax = plt.subplots(figsize=(16, 8))
 pivot1.plot(ax=ax, marker="o")
 ax.set_title("Crimes violentos por região (2003-2026)")
 ax.set_xlabel("Ano")
-ax.set_ylabel("Total de vítimas de crimes violentos")
+ax.set_ylabel("Registros de crimes violentos")
 ax.legend(title="Região")
 ax.grid(alpha=0.3)
 plt.tight_layout()
@@ -165,6 +167,33 @@ plt.show()
 #   comente essa limitação ao comparar regiões de tamanhos diferentes.
 # - Compare com letalidade_violenta_total (também retornada na tabela): a
 #   tendência geral muda quando se olha só para os casos letais?
+
+# COMMAND ----------
+
+w_pico = Window.partitionBy("regiao").orderBy(
+    F.col("crimes_violentos_total").desc()
+)
+
+resumo_p1 = (
+    pergunta1_sdf
+    .withColumn("rn", F.row_number().over(w_pico))
+    .filter(F.col("rn") == 1)
+    .select(
+        "regiao",
+        F.col("ano").alias("ano_pico"),
+        F.col("crimes_violentos_total").alias("valor_pico")
+    )
+)
+
+display(resumo_p1)
+
+print("Último mês disponível por ano:")
+display(
+    df_cisp
+    .groupBy("ano")
+    .agg(F.max("mes").alias("ultimo_mes_disponivel"))
+    .orderBy("ano")
+)
 
 # COMMAND ----------
 
@@ -190,10 +219,36 @@ display(pergunta2_sdf.limit(15))
 
 # COMMAND ----------
 
+mapa_cisp = {
+    "5": "CISP 5 — Centro/Lapa",
+    "16": "CISP 16 — Barra da Tijuca",
+    "35": "CISP 35 — Campo Grande",
+    "34": "CISP 34 — Bangu",
+    "12": "CISP 12 — Copacabana/Leme",
+    "29": "CISP 29 — Madureira",
+    "32": "CISP 32 — Taquara/Jacarepaguá",
+    "14": "CISP 14 — Ipanema/Leblon",
+    "21": "CISP 21 — Bonsucesso/Maré",
+    "9": "CISP 9 — Catete/Flamengo",
+    "10": "CISP 10 — Botafogo/Urca",
+    "4": "CISP 4 — Centro/Gamboa",
+    "1": "CISP 1 — Centro",
+    "27": "CISP 27 — Irajá/Vila da Penha",
+    "18": "CISP 18 — Maracanã/Tijuca"
+}
+
+pergunta2_df["cisp_rotulo"] = (
+    pergunta2_df["cisp"]
+    .astype(str)
+    .map(mapa_cisp)
+    .fillna("CISP " + pergunta2_df["cisp"].astype(str))
+)
+
+# COMMAND ----------
+
 fig, ax = plt.subplots(figsize=(10, 6))
-ax.barh(pergunta2_df["cisp"].astype(str), pergunta2_df["crimes_patrimoniais_total"])
-ax.set_xlabel("Total de roubo de rua + furtos (2003-2026)")
-ax.set_ylabel("CISP")
+ax.barh(pergunta2_df["cisp_rotulo"],pergunta2_df["crimes_patrimoniais_total"])
+ax.set_xlabel("Total de roubo de rua e furtos (2003-2026)")
 ax.set_title("Top 15 CISPs da Capital em crimes patrimoniais")
 ax.invert_yaxis()
 plt.tight_layout()
@@ -272,24 +327,64 @@ display(pergunta3_regiao_sdf)
 
 pergunta4_sdf = (
     df_municipio
-    .filter(F.col("indice_recuperacao_veiculos").isNotNull())
     .groupBy("ano", "regiao")
-    .agg(F.avg("indice_recuperacao_veiculos").alias("indice_recuperacao_medio"))
+    .agg(
+        F.sum("recuperacao_veiculos").alias("recuperados"),
+        F.sum("veiculos_subtraidos").alias("subtraidos")
+    )
+    .withColumn(
+        "indice_recuperacao",
+        F.when(
+            F.col("subtraidos") > 0,
+            F.col("recuperados") / F.col("subtraidos")
+        )
+    )
     .orderBy("ano", "regiao")
 )
 
-pergunta4_df = pergunta4_sdf.toPandas()
 display(pergunta4_sdf)
+
+pergunta4_df = pergunta4_sdf.toPandas()
+
+pivot4 = pergunta4_df.pivot(
+    index="ano",
+    columns="regiao",
+    values="indice_recuperacao"
+)
 
 # COMMAND ----------
 
-pivot4 = pergunta4_df.pivot(index="ano", columns="regiao", values="indice_recuperacao_medio")
+total_com_indice = (
+    df_municipio
+    .filter(F.col("indice_recuperacao_veiculos").isNotNull())
+    .count()
+)
+
+acima_de_1 = (
+    df_municipio
+    .filter(F.col("indice_recuperacao_veiculos") > 1)
+    .count()
+)
+
+percentual = (
+    100 * acima_de_1 / total_com_indice
+    if total_com_indice > 0
+    else 0
+)
+
+print(
+    f"Linhas com índice de recuperação > 1: "
+    f"{acima_de_1} de {total_com_indice} "
+    f"({percentual:.2f}%)"
+)
+
+# COMMAND ----------
 
 fig, ax = plt.subplots(figsize=(12, 6))
 pivot4.plot(ax=ax, marker="o")
-ax.set_title("Índice médio de recuperação de veículos por região (2014-2026)")
+ax.set_title("Índice de recuperação de veículos por região e ano")
 ax.set_xlabel("Ano")
-ax.set_ylabel("Recuperados / (roubados + furtados)")
+ax.set_ylabel("Recuperados / veículos subtraídos")
 ax.legend(title="Região")
 ax.grid(alpha=0.3)
 plt.tight_layout()
@@ -337,17 +432,7 @@ pergunta7_sdf = (
 
 display(pergunta7_sdf)
 
-
-# ============================================================
-# TRANSFORMA PARA PANDAS
-# ============================================================
-
 pergunta7_df = pergunta7_sdf.toPandas()
-
-
-# ============================================================
-# NOMES DOS MESES
-# ============================================================
 
 nomes_meses = {
     1: "Jan",
@@ -400,6 +485,29 @@ ax.grid(alpha=0.3)
 plt.xticks(rotation=45)
 plt.tight_layout()
 plt.show()
+
+# COMMAND ----------
+
+print("Maior número mensal de feminicídios:")
+display(
+    pergunta7_sdf
+    .orderBy(F.col("total_feminicidio").desc())
+    .limit(5)
+)
+
+print("Maior número mensal de tentativas de feminicídio:")
+display(
+    pergunta7_sdf
+    .orderBy(F.col("total_tentativa_feminicidio").desc())
+    .limit(5)
+)
+
+display(
+    pergunta7_sdf.agg(
+        F.sum("total_feminicidio").alias("total_feminicidios"),
+        F.sum("total_tentativa_feminicidio").alias("total_tentativas")
+    )
+)
 
 # COMMAND ----------
 
@@ -469,6 +577,77 @@ ax.grid(alpha=0.3)
 
 plt.tight_layout()
 plt.show()
+
+# COMMAND ----------
+
+mensal_p6 = (
+    df_municipio
+    .groupBy("ano", "mes")
+    .agg(
+        F.sum("roubo_rua").alias("roubo_rua_total"),
+        F.sum("roubo_comercio").alias("roubo_comercio_total")
+    )
+)
+
+w_rua = Window.partitionBy("ano").orderBy(
+    F.col("roubo_rua_total").desc()
+)
+
+w_comercio = Window.partitionBy("ano").orderBy(
+    F.col("roubo_comercio_total").desc()
+)
+
+top_rua = (
+    mensal_p6
+    .withColumn("posicao", F.row_number().over(w_rua))
+    .filter(F.col("posicao") == 1)
+    .select(
+        "ano",
+        F.col("mes").alias("mes_destaque"),
+        "roubo_rua_total"
+    )
+    .orderBy("ano")
+)
+
+top_comercio = (
+    mensal_p6
+    .withColumn("posicao", F.row_number().over(w_comercio))
+    .filter(F.col("posicao") == 1)
+    .select(
+        "ano",
+        F.col("mes").alias("mes_destaque"),
+        "roubo_comercio_total"
+    )
+    .orderBy("ano")
+)
+
+print("Mês com maior roubo de rua em cada ano:")
+display(top_rua)
+
+print("Mês com maior roubo a comércio em cada ano:")
+display(top_comercio)
+
+# COMMAND ----------
+
+repeticao_rua = (
+    top_rua
+    .groupBy("mes_destaque")
+    .count()
+    .orderBy(F.col("count").desc())
+)
+
+repeticao_comercio = (
+    top_comercio
+    .groupBy("mes_destaque")
+    .count()
+    .orderBy(F.col("count").desc())
+)
+
+print("Frequência dos meses de maior roubo de rua:")
+display(repeticao_rua)
+
+print("Frequência dos meses de maior roubo a comércio:")
+display(repeticao_comercio)
 
 # COMMAND ----------
 

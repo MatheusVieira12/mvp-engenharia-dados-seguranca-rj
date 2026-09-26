@@ -26,10 +26,6 @@
 
 # COMMAND ----------
 
-spark.sql("DROP TABLE IF EXISTS projeto_seguranca_rj.gold.dim_cisp")
-
-# COMMAND ----------
-
 from pyspark.sql import functions as F
 from pyspark.sql import Window
 

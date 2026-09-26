@@ -266,6 +266,98 @@ print(f"Top 5 CISPs concentram {100 * top5 / total_capital:.1f}% dos crimes patr
 
 # COMMAND ----------
 
+# ============================================================
+# CRUZAMENTO: OUTLIERS DE CRIMES PATRIMONIAIS x TOP 5 CISPs
+# ============================================================
+
+# Mesmo critério IQR usado no perfil estatístico
+q1, mediana, q3 = df_cisp.approxQuantile(
+    "crimes_patrimoniais",
+    [0.25, 0.5, 0.75],
+    0.01
+)
+
+iqr = q3 - q1
+limite_superior = q3 + 1.5 * iqr
+
+print(f"Limite superior de outlier: {limite_superior}")
+
+# Outliers de crimes patrimoniais somente da Capital
+outliers_capital = (
+    df_cisp
+    .filter(
+        (F.col("regiao") == "Capital") &
+        (F.col("crimes_patrimoniais") > limite_superior)
+    )
+)
+
+# Quantidade de meses outliers por CISP
+ranking_outliers = (
+    outliers_capital
+    .groupBy("cisp")
+    .agg(
+        F.count("*").alias("qtd_meses_outliers"),
+        F.sum("crimes_patrimoniais").alias("total_crimes_nos_outliers")
+    )
+    .orderBy(
+        F.col("qtd_meses_outliers").desc(),
+        F.col("total_crimes_nos_outliers").desc()
+    )
+)
+
+print("CISPs da Capital com mais meses classificados como outliers:")
+display(ranking_outliers.limit(15))
+
+# Top 5 CISPs da Pergunta 2
+top5_cisp = (
+    pergunta2_sdf
+    .limit(5)
+    .select("cisp")
+    .withColumn("top5_pergunta2", F.lit("SIM"))
+)
+
+# Mostra quais CISPs de outliers também pertencem ao Top 5
+comparacao_outliers = (
+    ranking_outliers
+    .join(
+        top5_cisp,
+        on="cisp",
+        how="left"
+    )
+    .fillna({"top5_pergunta2": "NAO"})
+)
+
+print("Comparação com o Top 5 da Pergunta 2:")
+display(comparacao_outliers.limit(15))
+
+# Percentual dos outliers da Capital pertencentes ao Top 5
+total_outliers_capital = outliers_capital.count()
+
+outliers_top5 = (
+    outliers_capital
+    .join(
+        top5_cisp.select("cisp"),
+        on="cisp",
+        how="inner"
+    )
+    .count()
+)
+
+percentual_top5_outliers = (
+    100 * outliers_top5 / total_outliers_capital
+    if total_outliers_capital > 0
+    else 0
+)
+
+print(f"Outliers de crimes patrimoniais na Capital: {total_outliers_capital}")
+print(f"Outliers pertencentes às Top 5 CISPs: {outliers_top5}")
+print(
+    f"Percentual dos outliers da Capital concentrados nas Top 5 CISPs: "
+    f"{percentual_top5_outliers:.1f}%"
+)
+
+# COMMAND ----------
+
 # MAGIC %md
 # MAGIC ## Pergunta 3 — Atividade policial e crimes patrimoniais do mês seguinte
 # MAGIC

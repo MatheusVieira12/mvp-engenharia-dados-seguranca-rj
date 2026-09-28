@@ -730,7 +730,7 @@ silver.taxas_municipio
 As descrições semânticas dos indicadores permanecem as mesmas apresentadas no catálogo da camada Bronze. A camada Silver altera principalmente a representação técnica e a qualidade dos dados, sem modificar o significado dos indicadores originais.
 
 <p align="center">
-  <img src="./image_1790559507621.png" width="40%">
+  <img src="./imagens/image_1790559507621.png" width="40%">
 </p>
 
 <p align="center">

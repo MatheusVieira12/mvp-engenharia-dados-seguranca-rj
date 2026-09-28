@@ -1034,6 +1034,7 @@ Dessa forma, os registros passaram a utilizar uma única representação da regi
 <p align="center">
   <em>Figura 4 — Evidência da padronização do campo <code>regiao</code>, unificando os registros de Grande Niterói.</em>
 </p>
+
 ---
 
 ### 3. Cobertura temporal diferente entre as fontes

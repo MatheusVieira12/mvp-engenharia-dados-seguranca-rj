@@ -1482,6 +1482,10 @@ Capital              → 0,450
 </p>
 
 <p align="justify">
+&emsp;&emsp;Como a análise utiliza contagens absolutas por CISP, parte dessa associação também pode refletir diferenças de escala entre as circunscrições. CISPs com maior volume de ocorrências podem apresentar simultaneamente maior atividade policial e maior quantidade de crimes registrados.
+</p>
+
+<p align="justify">
 &emsp;&emsp;Assim, os dados indicam uma <strong>associação temporal positiva</strong> entre atividade policial e crimes patrimoniais do mês seguinte, mas não permitem concluir que o aumento da atividade policial provoque aumento ou redução da criminalidade.
 </p>
 

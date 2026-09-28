@@ -16,6 +16,11 @@
 
 # COMMAND ----------
 
+from pyspark.sql import functions as F
+from pyspark.sql import Window
+
+# COMMAND ----------
+
 # MAGIC %md
 # MAGIC ## 0. Limpeza de tabelas antigas
 # MAGIC
@@ -26,13 +31,14 @@
 
 # COMMAND ----------
 
-from pyspark.sql import functions as F
-from pyspark.sql import Window
-
 spark.sql("CREATE SCHEMA IF NOT EXISTS projeto_seguranca_rj.gold")
 
+spark.sql("DROP TABLE IF EXISTS projeto_seguranca_rj.gold.dim_cisp")
+
 df_ocorrencias = spark.table("projeto_seguranca_rj.silver.ocorrencias_municipio")
+
 df_taxas = spark.table("projeto_seguranca_rj.silver.taxas_municipio")
+
 df_dp = spark.table("projeto_seguranca_rj.silver.dp_municipio")
 
 print("Ocorrências município:", df_ocorrencias.count())
@@ -83,50 +89,45 @@ print("Schemas validados.")
 
 # COMMAND ----------
 
-duplicados_dp = (
-    df_dp
-    .groupBy("cisp", "munic", "ano", "mes")
-    .count()
-    .filter(F.col("count") > 1)
-)
+validacoes_chave = {
+    "ocorrencias_municipio": (
+        df_ocorrencias,
+        ["fmun_cod", "ano", "mes"]
+    ),
+    "taxas_municipio": (
+        df_taxas,
+        ["fmun_cod", "ano", "mes"]
+    ),
+    "dp_municipio": (
+        df_dp,
+        ["cisp", "munic", "ano", "mes"]
+    )
+}
 
-qtd_duplicados_dp = duplicados_dp.count()
-
-print("Chaves duplicadas em dp_municipio:", qtd_duplicados_dp)
-
-if qtd_duplicados_dp > 0:
-    display(duplicados_dp)
-    raise ValueError(
-        "A Silver dp_municipio ainda possui duplicidade. "
-        "Corrija a 01_silver antes de construir a Gold."
+for nome, (df, chave) in validacoes_chave.items():
+    duplicados = (
+        df
+        .groupBy(*chave)
+        .count()
+        .filter(F.col("count") > 1)
     )
 
-# COMMAND ----------
+    qtd_duplicados = duplicados.count()
 
-# MAGIC %md
-# MAGIC ## 1.1 Correção de qualidade de dados — encoding de `regiao` em `dp_municipio`
-# MAGIC
-# MAGIC A base `BaseDPEvolucaoMensalCisp.csv` traz "Grande Niterói" corrompida por
-# MAGIC múltiplas recodificações de encoding em boa parte das linhas dessa categoria
-# MAGIC (ex.: `Grande NiterÃ...i`). Sem tratar, "Grande Niterói" vira DUAS categorias
-# MAGIC diferentes e distorce qualquer agregação por região — o que afeta diretamente
-# MAGIC a pergunta de negócio sobre evolução da letalidade violenta por região.
-# MAGIC O ideal é corrigir isso já na Silver (`01_silver_seguranca_rj`); aqui a
-# MAGIC correção é aplicada de forma defensiva, antes de `regiao` ser usada em
-# MAGIC qualquer tabela Gold.
+    print(
+        f"Chaves duplicadas em {nome}:",
+        qtd_duplicados
+    )
 
-# COMMAND ----------
+    if qtd_duplicados > 0:
+        display(duplicados)
 
-print("Valores distintos de regiao em dp_municipio ANTES da correção:")
-df_dp.groupBy("regiao").count().show(truncate=False)
+        raise ValueError(
+            f"A Silver {nome} possui "
+            "duplicidade na chave."
+        )
 
-df_dp = df_dp.withColumn(
-    "regiao",
-    F.when(F.col("regiao").contains("Niter"), F.lit("Grande Niterói")).otherwise(F.col("regiao"))
-)
-
-print("Valores distintos de regiao em dp_municipio DEPOIS da correção:")
-df_dp.groupBy("regiao").count().show(truncate=False)
+print("Unicidade das tabelas Silver validada.")
 
 # COMMAND ----------
 
@@ -210,7 +211,27 @@ duplicados_dim_municipio = (
     .filter(F.col("count") > 1)
 )
 
-print("Duplicidades na dim_municipio:", duplicados_dim_municipio.count())
+qtd_duplicados_dim = (
+    duplicados_dim_municipio.count()
+)
+
+print(
+    "Duplicidades na dim_municipio:",
+    qtd_duplicados_dim
+)
+
+if qtd_duplicados_dim > 0:
+    display(duplicados_dim_municipio)
+
+    raise ValueError(
+        "A dim_municipio possui "
+        "fmun_cod duplicado."
+    )
+
+print(
+    "Unicidade da dim_municipio "
+    "validada com sucesso."
+)
 
 # COMMAND ----------
 
@@ -238,7 +259,9 @@ print("dim_municipio salva.")
 # MAGIC Observação: o índice de recuperação é uma razão analítica entre recuperações registradas no mês e roubos + furtos de veículos do mesmo mês. Ele não deve ser interpretado como rastreamento individual dos mesmos veículos.
 # MAGIC
 # MAGIC `feminicidio` e `tentativa_feminicidio` foram incluídas porque alimentam
-# MAGIC diretamente a pergunta de negócio sobre evolução do feminicídio desde 2015.
+# MAGIC diretamente a pergunta de negócio sobre a evolução mensal dos registros
+# MAGIC de feminicídio e tentativa de feminicídio a partir de
+# MAGIC outubro de 2024.
 
 # COMMAND ----------
 
@@ -312,7 +335,11 @@ fato_criminalidade_municipio = (
 
 display(
     fato_criminalidade_municipio
-    .orderBy(F.desc("ano"), F.desc("mes"))
+    .orderBy(
+        F.desc("ano"),
+        F.desc("mes")
+    )
+    .limit(10)
 )
 
 # COMMAND ----------
@@ -325,11 +352,22 @@ duplicados_fato_municipio = (
 )
 
 qtd_dup_fato_municipio = duplicados_fato_municipio.count()
-print("Duplicidades na fato municipal:", qtd_dup_fato_municipio)
+
+print(
+    "Duplicidades na fato municipal:",
+    qtd_dup_fato_municipio
+)
 
 if qtd_dup_fato_municipio > 0:
     display(duplicados_fato_municipio)
-    raise ValueError("A fato municipal ficou duplicada. Verifique a Silver de taxas.")
+
+    raise ValueError(
+        "A fato municipal ficou duplicada. "
+        "Verifique 02_silver_ocorrencias_rj "
+        "e 02_silver_taxas_rj."
+    )
+
+print("Unicidade da fato municipal validada com sucesso.")
 
 # COMMAND ----------
 
@@ -360,7 +398,7 @@ print("fato_criminalidade_municipio salva.")
 # MAGIC (evolução por região). `letalidade_violenta` conta só os desfechos letais
 # MAGIC (homicídio doloso + lesão corporal seguida de morte + latrocínio + morte por
 # MAGIC intervenção policial). `crimes_violentos` amplia esse escopo somando também
-# MAGIC dois crimes violentos não-letais que o dicionário do ISP-RJ documenta como
+# MAGIC três crimes violentos não-letais que o dicionário do ISP-RJ documenta como
 # MAGIC variáveis independentes (não fazem parte de nenhum outro indicador
 # MAGIC composto): tentativa de homicídio, lesão corporal dolosa e estupro.
 # MAGIC
@@ -370,10 +408,11 @@ print("fato_criminalidade_municipio salva.")
 # MAGIC                  + tentat_hom + lesao_corp_dolosa + estupro
 # MAGIC ```
 # MAGIC
-# MAGIC Somamos os componentes atômicos (não `letalidade_violenta` pronta) de
-# MAGIC propósito, para não contar o mesmo caso duas vezes — `letalidade_violenta`
-# MAGIC já É a soma dos 4 primeiros termos, então somá-la de novo com os 3 últimos
-# MAGIC daria overlap.
+# MAGIC Os componentes atômicos foram utilizados diretamente para
+# MAGIC tornar explícita a composição da métrica analítica
+# MAGIC `crimes_violentos`. O campo oficial `letalidade_violenta`
+# MAGIC é mantido separadamente, permitindo distinguir a letalidade
+# MAGIC dos demais registros de violência considerados na métrica.
 # MAGIC
 # MAGIC `letalidade_violenta` é mantida como coluna própria (não descartada), para
 # MAGIC quem quiser distinguir "só mortes" de "violência em sentido amplo".
@@ -437,10 +476,11 @@ fato_cisp_base = (
 # MAGIC
 # MAGIC O dicionário do ISP-RJ documenta `letalidade_violenta` como
 # MAGIC `hom_doloso + lesao_corp_morte + latrocinio + hom_por_interv_policial`.
-# MAGIC Essa checagem é informativa (não trava a execução): uma pequena divergência
-# MAGIC já foi observada em ~0,5% das linhas (concentrada em revisões recentes com
-# MAGIC `fase = 3`), então um valor baixo aqui é esperado e não indica bug do
-# MAGIC pipeline — só uma inconsistência pontual da própria fonte.
+# MAGIC Essa checagem é informativa (não trava a execução): Essa checagem é informativa e não interrompe a execução.
+# MAGIC Pequenas divergências entre o campo oficial
+# MAGIC `letalidade_violenta` e a soma de seus componentes foram
+# MAGIC identificadas na fonte. Por isso, a quantidade e o percentual
+# MAGIC são apresentados para acompanhamento da qualidade dos dados.
 
 # COMMAND ----------
 
@@ -458,7 +498,19 @@ divergencia_letalidade = (
 
 qtd_divergencia = divergencia_letalidade.count()
 qtd_total = fato_cisp_base.count()
-print(f"Linhas onde letalidade_violenta diverge da soma dos componentes: {qtd_divergencia} de {qtd_total} ({100 * qtd_divergencia / qtd_total:.2f}%)")
+
+percentual_divergencia = (
+    100 * qtd_divergencia / qtd_total
+    if qtd_total > 0
+    else 0
+)
+
+print(
+    "Linhas onde letalidade_violenta diverge "
+    "da soma dos componentes: "
+    f"{qtd_divergencia} de {qtd_total} "
+    f"({percentual_divergencia:.2f}%)"
+)
 
 w_cisp = (
     Window
@@ -498,6 +550,7 @@ fato_criminalidade_cisp = (
 display(
     fato_criminalidade_cisp
     .orderBy("cisp", "ano", "mes")
+    .limit(10)
 )
 
 # COMMAND ----------
@@ -510,11 +563,24 @@ duplicados_fato_cisp = (
 )
 
 qtd_dup_fato_cisp = duplicados_fato_cisp.count()
-print("Duplicidades na fato CISP:", qtd_dup_fato_cisp)
+
+print(
+    "Duplicidades na fato CISP:",
+    qtd_dup_fato_cisp
+)
 
 if qtd_dup_fato_cisp > 0:
     display(duplicados_fato_cisp)
-    raise ValueError("A fato CISP ficou duplicada. Verifique a 01_silver.")
+
+    raise ValueError(
+        "A fato CISP ficou duplicada. "
+        "Verifique 02_silver_dp_rj."
+    )
+
+print(
+    "Unicidade da fato CISP "
+    "validada com sucesso."
+)
 
 # COMMAND ----------
 
@@ -535,16 +601,42 @@ print("fato_criminalidade_cisp salva.")
 
 # COMMAND ----------
 
-tabelas_gold = [
-    "dim_tempo",
-    "dim_municipio",
-    "fato_criminalidade_municipio",
-    "fato_criminalidade_cisp"
-]
+validacoes_gold = {
+    "dim_tempo": dim_tempo,
+    "dim_municipio": dim_municipio,
+    "fato_criminalidade_municipio":
+        fato_criminalidade_municipio,
+    "fato_criminalidade_cisp":
+        fato_criminalidade_cisp
+}
 
-for tabela in tabelas_gold:
-    nome_completo = f"projeto_seguranca_rj.gold.{tabela}"
-    print(tabela, "->", spark.table(nome_completo).count(), "linhas")
+for tabela, df in validacoes_gold.items():
+    nome_completo = (
+        f"projeto_seguranca_rj.gold.{tabela}"
+    )
+
+    linhas_dataframe = df.count()
+
+    linhas_tabela = (
+        spark.table(nome_completo)
+        .count()
+    )
+
+    print(
+        f"{tabela}: "
+        f"DataFrame={linhas_dataframe} | "
+        f"Tabela={linhas_tabela}"
+    )
+
+    if linhas_dataframe != linhas_tabela:
+        raise ValueError(
+            f"Divergência na persistência de {tabela}."
+        )
+
+print(
+    "Persistência das quatro tabelas Gold "
+    "validada com sucesso."
+)
 
 # COMMAND ----------
 

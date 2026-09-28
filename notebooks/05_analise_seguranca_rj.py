@@ -17,39 +17,76 @@ from pyspark.sql import Window
 import pandas as pd
 import matplotlib.pyplot as plt
 
+# COMMAND ----------
 
 pd.set_option("display.max_columns", None)
 
 df_cisp = spark.table("projeto_seguranca_rj.gold.fato_criminalidade_cisp")
 df_municipio = spark.table("projeto_seguranca_rj.gold.fato_criminalidade_municipio")
-df_dim_tempo = spark.table("projeto_seguranca_rj.gold.dim_tempo")
-df_dim_municipio = spark.table("projeto_seguranca_rj.gold.dim_municipio")
 
 # COMMAND ----------
 
 def perfil_estatistico(df, coluna):
-    """Calcula média, quartis e limites de outlier (IQR) para uma coluna numérica."""
-    media = df.agg(F.avg(coluna)).collect()[0][0]
-    q1, mediana, q3 = df.approxQuantile(coluna, [0.25, 0.5, 0.75], 0.01)
+    """Calcula média, quartis e limites de outlier (IQR)."""
+
+    df_valido = df.filter(
+        F.col(coluna).isNotNull()
+    )
+
+    qtd_total = df_valido.count()
+
+    if qtd_total == 0:
+        return {
+            "coluna": coluna,
+            "media": None,
+            "mediana": None,
+            "q1": None,
+            "q3": None,
+            "limite_inferior_outlier": None,
+            "limite_superior_outlier": None,
+            "qtd_outliers": 0,
+            "pct_outliers": 0
+        }
+
+    media = (
+        df_valido
+        .agg(F.avg(coluna))
+        .collect()[0][0]
+    )
+
+    q1, mediana, q3 = df_valido.approxQuantile(
+        coluna,
+        [0.25, 0.5, 0.75],
+        0.01
+    )
+
     iqr = q3 - q1
+
     limite_inferior = q1 - 1.5 * iqr
     limite_superior = q3 + 1.5 * iqr
 
-    qtd_outliers = df.filter(
-        (F.col(coluna) < limite_inferior) | (F.col(coluna) > limite_superior)
-    ).count()
-    qtd_total = df.count()
+    qtd_outliers = (
+        df_valido
+        .filter(
+            (F.col(coluna) < limite_inferior)
+            | (F.col(coluna) > limite_superior)
+        )
+        .count()
+    )
 
     return {
         "coluna": coluna,
-        "media": round(media, 2) if media is not None else None,
+        "media": round(media, 2),
         "mediana": mediana,
         "q1": q1,
         "q3": q3,
-        "limite_inferior_outlier": round(limite_inferior, 2),
-        "limite_superior_outlier": round(limite_superior, 2),
+        "limite_inferior_outlier":
+            round(limite_inferior, 2),
+        "limite_superior_outlier":
+            round(limite_superior, 2),
         "qtd_outliers": qtd_outliers,
-        "pct_outliers": round(100 * qtd_outliers / qtd_total, 2)
+        "pct_outliers":
+            round(100 * qtd_outliers / qtd_total, 2)
     }
 
 # COMMAND ----------
@@ -112,18 +149,12 @@ plt.show()
 
 # COMMAND ----------
 
-total_com_indice = df_municipio.filter(F.col("indice_recuperacao_veiculos").isNotNull()).count()
-acima_de_1 = df_municipio.filter(F.col("indice_recuperacao_veiculos") > 1).count()
-
-print(f"Linhas com índice de recuperação > 1: {acima_de_1} de {total_com_indice} ({100 * acima_de_1 / total_com_indice:.2f}%)")
-
-# COMMAND ----------
-
 # MAGIC %md
 # MAGIC ## Pergunta 1 — Crimes violentos por região (2003-2026)
 # MAGIC
-# MAGIC Usa `fato_criminalidade_cisp`, única com série longa e com `regiao` já
-# MAGIC corrigida (encoding de "Grande Niterói" tratado na Gold).
+# MAGIC Usa `fato_criminalidade_cisp`, única com série longa e com `regiao`
+# MAGIC já padronizada na camada Silver, incluindo a correção de
+# MAGIC `Grande Niterói`.
 # MAGIC
 # MAGIC `crimes_violentos` (calculada na Gold) amplia o escopo de
 # MAGIC `letalidade_violenta`: além dos desfechos letais (homicídio doloso, lesão
@@ -160,13 +191,6 @@ ax.legend(title="Região")
 ax.grid(alpha=0.3)
 plt.tight_layout()
 plt.show()
-
-# TODO (discussão a escrever no README após rodar):
-# - Qual região tem a maior queda proporcional desde o pico?
-# - Valores são absolutos (não normalizados por população/número de CISPs) --
-#   comente essa limitação ao comparar regiões de tamanhos diferentes.
-# - Compare com letalidade_violenta_total (também retornada na tabela): a
-#   tendência geral muda quando se olha só para os casos letais?
 
 # COMMAND ----------
 
@@ -224,24 +248,17 @@ mapa_cisp = {
     "16": "CISP 16 — Barra da Tijuca",
     "35": "CISP 35 — Campo Grande",
     "34": "CISP 34 — Bangu",
-    "12": "CISP 12 — Copacabana/Leme",
-    "29": "CISP 29 — Madureira",
-    "32": "CISP 32 — Taquara/Jacarepaguá",
-    "14": "CISP 14 — Ipanema/Leblon",
-    "21": "CISP 21 — Bonsucesso/Maré",
-    "9": "CISP 9 — Catete/Flamengo",
-    "10": "CISP 10 — Botafogo/Urca",
-    "4": "CISP 4 — Centro/Gamboa",
-    "1": "CISP 1 — Centro",
-    "27": "CISP 27 — Irajá/Vila da Penha",
-    "18": "CISP 18 — Maracanã/Tijuca"
+    "12": "CISP 12 — Copacabana/Leme"
 }
 
 pergunta2_df["cisp_rotulo"] = (
     pergunta2_df["cisp"]
     .astype(str)
     .map(mapa_cisp)
-    .fillna("CISP " + pergunta2_df["cisp"].astype(str))
+    .fillna(
+        "CISP "
+        + pergunta2_df["cisp"].astype(str)
+    )
 )
 
 # COMMAND ----------
@@ -262,7 +279,6 @@ total_capital = (
 top5 = pergunta2_df.head(5)["crimes_patrimoniais_total"].sum()
 print(f"Top 5 CISPs concentram {100 * top5 / total_capital:.1f}% dos crimes patrimoniais da Capital")
 
-# TODO: a base não traz nome de delegacia -- os CISPs aparecem só pelo código numérico.
 
 # COMMAND ----------
 
@@ -399,11 +415,16 @@ plt.tight_layout()
 plt.show()
 
 pergunta3_regiao_sdf = (
-    df_cisp
-    .filter(F.col("crimes_patrimoniais_mes_seguinte").isNotNull())
+    pergunta3_sdf
     .groupBy("regiao")
-    .agg(F.corr("atividade_policial", "crimes_patrimoniais_mes_seguinte").alias("correlacao"))
+    .agg(
+        F.corr(
+            "atividade_policial",
+            "crimes_patrimoniais_mes_seguinte"
+        ).alias("correlacao")
+    )
 )
+
 display(pergunta3_regiao_sdf)
 
 # COMMAND ----------
@@ -485,24 +506,16 @@ plt.show()
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## Pergunta 5 — Feminicídio e tentativa de feminicídio desde 2015
+# MAGIC ## Pergunta 5 — Feminicídio e tentativa de feminicídio a partir de outubro de 2024
 
 # COMMAND ----------
 
-pergunta7_sdf = (
+pergunta5_sdf = (
     df_municipio
 
-    .withColumn(
-        "data_referencia",
-        F.make_date(
-            F.col("ano"),
-            F.col("mes"),
-            F.lit(1)
-        )
-    )
-
     .filter(
-        F.col("data_referencia") >= F.lit("2024-10-01")
+        F.col("data_referencia")
+        >= F.lit("2024-10-01")
     )
 
     .groupBy(
@@ -522,9 +535,9 @@ pergunta7_sdf = (
     .orderBy("data_referencia")
 )
 
-display(pergunta7_sdf)
+display(pergunta5_sdf)
 
-pergunta7_df = pergunta7_sdf.toPandas()
+pergunta5_df = pergunta5_sdf.toPandas()
 
 nomes_meses = {
     1: "Jan",
@@ -541,63 +554,92 @@ nomes_meses = {
     12: "Dez"
 }
 
-pergunta7_df["periodo"] = (
-    pergunta7_df["mes"].map(nomes_meses)
+pergunta5_df["periodo"] = (
+    pergunta5_df["mes"].map(nomes_meses)
     + "/"
-    + pergunta7_df["ano"].astype(str)
+    + pergunta5_df["ano"].astype(str)
 )
 
 # COMMAND ----------
 
 # ============================================================
-# GRÁFICO
+# GRÁFICO — EVOLUÇÃO MENSAL DE FEMINICÍDIO
 # ============================================================
 
 fig, ax = plt.subplots(figsize=(12, 6))
 
 ax.plot(
-    pergunta7_df["periodo"],
-    pergunta7_df["total_feminicidio"],
+    pergunta5_df["periodo"],
+    pergunta5_df["total_feminicidio"],
     marker="o",
     label="Feminicídio"
 )
 
 ax.plot(
-    pergunta7_df["periodo"],
-    pergunta7_df["total_tentativa_feminicidio"],
+    pergunta5_df["periodo"],
+    pergunta5_df["total_tentativa_feminicidio"],
     marker="o",
     label="Tentativa de feminicídio"
 )
 
 ax.set_xlabel("Mês")
 ax.set_ylabel("Número de registros")
-ax.set_title("Evolução mensal de feminicídios e tentativas de feminicídio")
+ax.set_title(
+    "Evolução mensal de feminicídios "
+    "e tentativas de feminicídio"
+)
+
 ax.legend()
 ax.grid(alpha=0.3)
+
 plt.xticks(rotation=45)
 plt.tight_layout()
 plt.show()
 
 # COMMAND ----------
 
-print("Maior número mensal de feminicídios:")
-display(
-    pergunta7_sdf
-    .orderBy(F.col("total_feminicidio").desc())
-    .limit(5)
-)
-
-print("Maior número mensal de tentativas de feminicídio:")
-display(
-    pergunta7_sdf
-    .orderBy(F.col("total_tentativa_feminicidio").desc())
-    .limit(5)
+print(
+    "Maior número mensal de feminicídios:"
 )
 
 display(
-    pergunta7_sdf.agg(
-        F.sum("total_feminicidio").alias("total_feminicidios"),
-        F.sum("total_tentativa_feminicidio").alias("total_tentativas")
+    pergunta5_sdf
+    .orderBy(
+        F.col(
+            "total_feminicidio"
+        ).desc()
+    )
+    .limit(5)
+)
+
+print(
+    "Maior número mensal de tentativas "
+    "de feminicídio:"
+)
+
+display(
+    pergunta5_sdf
+    .orderBy(
+        F.col(
+            "total_tentativa_feminicidio"
+        ).desc()
+    )
+    .limit(5)
+)
+
+display(
+    pergunta5_sdf.agg(
+        F.sum(
+            "total_feminicidio"
+        ).alias(
+            "total_feminicidios"
+        ),
+
+        F.sum(
+            "total_tentativa_feminicidio"
+        ).alias(
+            "total_tentativas"
+        )
     )
 )
 
@@ -691,7 +733,10 @@ w_comercio = Window.partitionBy("ano").orderBy(
 
 top_rua = (
     mensal_p6
-    .withColumn("posicao", F.row_number().over(w_rua))
+    .withColumn(
+    "posicao",
+    F.dense_rank().over(w_rua)
+)
     .filter(F.col("posicao") == 1)
     .select(
         "ano",
@@ -703,7 +748,10 @@ top_rua = (
 
 top_comercio = (
     mensal_p6
-    .withColumn("posicao", F.row_number().over(w_comercio))
+    .withColumn(
+    "posicao",
+    F.dense_rank().over(w_comercio)
+)
     .filter(F.col("posicao") == 1)
     .select(
         "ano",
@@ -748,9 +796,39 @@ display(repeticao_comercio)
 
 # COMMAND ----------
 
-print("PERGUNTA 1 - Crimes violentos por região: ver tabela e gráfico acima")
-print("PERGUNTA 2 - Top 5 CISPs concentram {:.1f}% dos crimes patrimoniais da Capital".format(100 * top5 / total_capital))
-print(f"PERGUNTA 3 - Correlação geral atividade policial x crime do mês seguinte: {correlacao:.3f}")
-print("PERGUNTA 4 - Índice de recuperação de veículos por região/ano: ver tabela e gráfico acima")
-print("PERGUNTA 5 - Feminicídio/tentativa por ano e região: ver tabelas e gráfico acima")
-print("PERGUNTA 6 - Sazonalidade mensal de roubo de rua/comércio: ver tabela e gráfico acima")
+print(
+    "PERGUNTA 1 - Crimes violentos por região: "
+    "ver tabela, picos regionais e gráfico acima."
+)
+
+print(
+    "PERGUNTA 2 - Top 5 CISPs concentram "
+    "{:.1f}% dos crimes patrimoniais da Capital."
+    .format(
+        100 * top5 / total_capital
+    )
+)
+
+print(
+    "PERGUNTA 3 - Correlação geral entre "
+    "atividade policial e crimes patrimoniais "
+    f"do mês seguinte: {correlacao:.3f}."
+)
+
+print(
+    "PERGUNTA 4 - Índice de recuperação "
+    "de veículos por região e ano: "
+    "ver tabela e gráfico acima."
+)
+
+print(
+    "PERGUNTA 5 - Evolução mensal de "
+    "feminicídio e tentativa de feminicídio "
+    "a partir de outubro de 2024."
+)
+
+print(
+    "PERGUNTA 6 - Meses de maior roubo "
+    "de rua e roubo a comércio por ano, "
+    "com frequência de repetição dos picos."
+)

@@ -191,16 +191,33 @@ Notebook de ingestão Bronze:  [`01_bronze_seguranca_rj.ipynb`](notebooks/01_bro
 
 ### `projeto_seguranca_rj.bronze.dp_municipio`
 
-<img width="1347" height="646" alt="image" src="https://github.com/user-attachments/assets/212d62d9-7d74-4794-89dc-84ad2daff8dd" />
+<p align="center">
+  <img src="./imagens/image_1790556646533.png" width="90%">
+</p>
+
+<p align="center">
+  <em>Evidência da persistência da tabela <code>bronze.dp_municipio</code> no ambiente Databricks.</em>
+</p>
 
 ### `projeto_seguranca_rj.bronze.ocorrencias_municipio`
 
-<img width="1350" height="507" alt="image" src="https://github.com/user-attachments/assets/5dbcb3d9-d38b-4433-bfbf-05d6ec4c69e5" />
+<p align="center">
+  <img src="./imagens/image_1790556538687.png" width="90%">
+</p>
+
+<p align="center">
+  <em>Evidência da persistência da tabela <code>bronze.ocorrencias_municipio</code> no ambiente Databricks.</em>
+</p>
 
 ### `projeto_seguranca_rj.bronze.taxas_municipio`
 
-<img width="1342" height="489" alt="image" src="https://github.com/user-attachments/assets/1fb44515-52d7-49ca-b6b5-227b899def94" />
+<p align="center">
+  <img src="./imagens/image_1790556564879.png" width="90%">
+</p>
 
+<p align="center">
+  <em>Evidência da persistência da tabela <code>bronze.taxas_municipio</code> no ambiente Databricks.</em>
+</p>
 
 ## MODELAGEM E CATÁLOGO DE DADOS (Etapa 4.3)
 
@@ -240,87 +257,486 @@ Quando é necessário trabalhar com informações presentes nas duas granularida
 
 ### CATÁLOGO DE DADOS
 
-### BRONZE (as 3 tabelas)
+### BRONZE
 
-Réplica fiel dos CSVs originais + colunas de controle. Contexto, colunas, tipos e domínio de valores de cada uma das ~55-61 variáveis de indicadores criminais estão descritos nos dicionários oficiais do ISP-RJ, anexados ao repositório:
+A camada Bronze preserva a estrutura dos arquivos CSV disponibilizados pelo ISP-RJ, acrescentando apenas as colunas de controle `fonte_arquivo` e `data_ingestao`.
 
-#### Tabela Bronze	Dicionário de referência
+Foram utilizados como referência os três dicionários oficiais disponibilizados pelo ISP-RJ:
 
-#### Dicionários de dados
+| Tabela Bronze | Arquivo de origem | Dicionário de referência |
+|---|---|---|
+| `bronze.dp_municipio` | `BaseDPEvolucaoMensalCisp.csv` | `BaseDpDicionarioDeVariaveis.xlsx` |
+| `bronze.ocorrencias_municipio` | `BaseMunicipioMensal.csv` | `BaseMunicipioMensalDicionarioDeVariaveis.xlsx` |
+| `bronze.taxas_municipio` | `BaseMunicipioTaxaMes.csv` | `DicionarioDeVariaveisBaseMunicipioTaxaMes.xlsx` |
 
-Os dicionários oficiais do ISP-RJ utilizados como referência para a descrição, tipo e domínio dos campos estão disponíveis no próprio repositório:
+> Os dicionários oficiais consultados indicam última atualização em janeiro de 2021. Os arquivos utilizados no projeto são versões mais recentes e incluem alguns campos adicionais, como `feminicidio` e `tentativa_feminicidio`, presentes nas bases atuais de contagens.
 
-| Tabela | Dicionário de referência |
+#### Campos de identificação, localização e controle
+
+| Campo | Tabelas | Tipo na Bronze | Descrição | Domínio / observação |
+|---|---|---|---|---|
+| `cisp` | `dp_municipio` | `int` | Número da Circunscrição Integrada de Segurança Pública onde ocorreu o fato. | Código identificador de CISP. |
+| `aisp` | `dp_municipio` | `int` | Número da Área Integrada de Segurança Pública. | Código identificador de AISP. Algumas DPs mudaram de AISP ao longo da série histórica. |
+| `risp` | `dp_municipio` | `int` | Número da Região Integrada de Segurança Pública. | Código identificador de RISP. |
+| `munic` | `dp_municipio` | `string` | Nome do município da circunscrição. | Municípios do Estado do Rio de Janeiro ou agrupamentos definidos pela fonte. |
+| `mcirc` | `dp_municipio` | `int` | Código IBGE de 7 dígitos do município da circunscrição. | Código identificador; algumas circunscrições sofreram alterações históricas. |
+| `fmun_cod` | `ocorrencias_municipio`, `taxas_municipio` | `int` | Código IBGE de 7 dígitos do município. | Código identificador do município. |
+| `fmun` | `ocorrencias_municipio`, `taxas_municipio` | `string` | Nome do município. | Municípios do Estado do Rio de Janeiro. |
+| `ano` | todas | `int` | Ano da comunicação da ocorrência. | Ano referente ao registro. |
+| `mes` | todas | `int` | Mês da comunicação da ocorrência. | Valores de `1` a `12`. |
+| `mes_ano` | todas | `string` | Mês e ano da comunicação da ocorrência. | Referência textual mensal da fonte. |
+| `regiao` | todas | `string` | Região associada ao registro. | Baixada Fluminense, Capital, Grande Niterói ou Interior. |
+| `fase` | todas | `int` | Fase de consolidação do dado. | `2` = consolidado sem errata; `3` = consolidado com errata. |
+| `fonte_arquivo` | todas | `string` | Nome do arquivo CSV utilizado na ingestão. | Coluna de controle adicionada pelo pipeline. |
+| `data_ingestao` | todas | `timestamp` | Data e hora em que o registro foi carregado na Bronze. | Coluna de controle adicionada pelo pipeline. |
+
+#### Indicadores criminais e de atividade policial
+
+Os campos abaixo são compartilhados, em sua maioria, pelas três fontes. Nas bases `dp_municipio` e `ocorrencias_municipio`, representam **contagens absolutas** e são armazenados como `integer`. Na base `taxas_municipio`, representam **taxas** e são inicialmente armazenados como `string` na Bronze devido ao uso de vírgula como separador decimal.
+
+| Campo | Descrição | Unidade nas bases de contagem | Unidade em `taxas_municipio` | Domínio esperado |
+|---|---|---|---|---|
+| `hom_doloso` | Homicídio doloso | Vítimas | Taxa por 100 mil habitantes | Valores ≥ 0 |
+| `lesao_corp_morte` | Lesão corporal seguida de morte | Vítimas | Taxa por 100 mil habitantes | Valores ≥ 0 |
+| `latrocinio` | Latrocínio — roubo seguido de morte | Vítimas | Taxa por 100 mil habitantes | Valores ≥ 0 |
+| `cvli` | Crimes Violentos Letais Intencionais | Vítimas | Taxa por 100 mil habitantes | `hom_doloso + lesao_corp_morte + latrocinio` |
+| `hom_por_interv_policial` | Morte por intervenção de agente do Estado | Vítimas | Taxa por 100 mil habitantes | Valores ≥ 0 |
+| `letalidade_violenta` | Letalidade violenta | Vítimas | Taxa por 100 mil habitantes | Soma dos quatro componentes de letalidade documentados pelo ISP-RJ |
+| `tentat_hom` | Tentativa de homicídio | Vítimas | Taxa por 100 mil habitantes | Valores ≥ 0 |
+| `lesao_corp_dolosa` | Lesão corporal dolosa | Vítimas | Taxa por 100 mil habitantes | Valores ≥ 0 |
+| `estupro` | Estupro | Vítimas | Taxa por 100 mil habitantes | Valores ≥ 0 |
+| `hom_culposo` | Homicídio culposo de trânsito | Vítimas | Taxa por 100 mil habitantes | Valores ≥ 0 |
+| `lesao_corp_culposa` | Lesão corporal culposa de trânsito | Vítimas | Taxa por 100 mil habitantes | Valores ≥ 0 |
+| `roubo_transeunte` | Roubo a transeunte | Casos | Taxa por 100 mil habitantes | Valores ≥ 0 |
+| `roubo_celular` | Roubo de telefone celular | Casos | Taxa por 100 mil habitantes | Valores ≥ 0 |
+| `roubo_em_coletivo` | Roubo em coletivo | Casos | Taxa por 100 mil habitantes | Valores ≥ 0 |
+| `roubo_rua` | Roubo de rua | Casos | Taxa por 100 mil habitantes | Soma de roubo a transeunte, celular e coletivo |
+| `roubo_veiculo` | Roubo de veículo | Casos | Taxa por 100 mil veículos | Valores ≥ 0 |
+| `roubo_carga` | Roubo de carga | Casos | Taxa por 100 mil habitantes | Valores ≥ 0 |
+| `roubo_comercio` | Roubo a estabelecimento comercial | Casos | Taxa por 100 mil habitantes | Valores ≥ 0 |
+| `roubo_residencia` | Roubo a residência | Casos | Taxa por 100 mil habitantes | Valores ≥ 0 |
+| `roubo_banco` | Roubo a banco | Casos | Taxa por 100 mil habitantes | Valores ≥ 0 |
+| `roubo_cx_eletronico` | Roubo de caixa eletrônico | Casos | Taxa por 100 mil habitantes | Valores ≥ 0 |
+| `roubo_conducao_saque` | Roubo com condução da vítima para saque em instituição financeira | Casos | Taxa por 100 mil habitantes | Valores ≥ 0 |
+| `roubo_apos_saque` | Roubo após saque em instituição financeira | Casos | Taxa por 100 mil habitantes | Valores ≥ 0 |
+| `roubo_bicicleta` | Roubo de bicicleta | Casos | Taxa por 100 mil habitantes | Valores ≥ 0 |
+| `outros_roubos` | Outros roubos não listados individualmente | Casos | Taxa por 100 mil habitantes | Inclui ocorrências de latrocínio segundo o dicionário da fonte |
+| `total_roubos` | Total de roubos | Casos | Taxa por 100 mil habitantes | Soma das modalidades de roubo |
+| `furto_veiculos` | Furto de veículo | Casos | Taxa por 100 mil veículos | Valores ≥ 0 |
+| `furto_transeunte` | Furto a transeunte | Casos | Taxa por 100 mil habitantes | Valores ≥ 0 |
+| `furto_coletivo` | Furto em coletivo | Casos | Taxa por 100 mil habitantes | Valores ≥ 0 |
+| `furto_celular` | Furto de telefone celular | Casos | Taxa por 100 mil habitantes | Valores ≥ 0 |
+| `furto_bicicleta` | Furto de bicicleta | Casos | Taxa por 100 mil habitantes | Valores ≥ 0 |
+| `outros_furtos` | Outros furtos não listados individualmente | Casos | Taxa por 100 mil habitantes | Valores ≥ 0 |
+| `total_furtos` | Total de furtos | Casos | Taxa por 100 mil habitantes | Soma das modalidades de furto |
+| `sequestro` | Extorsão mediante sequestro | Vítimas | Taxa por 100 mil habitantes | Valores ≥ 0 |
+| `extorsao` | Extorsão | Casos | Taxa por 100 mil habitantes | Valores ≥ 0 |
+| `sequestro_relampago` | Extorsão com momentânea privação da liberdade | Vítimas | Taxa por 100 mil habitantes | Valores ≥ 0 |
+| `estelionato` | Estelionato | Casos | Taxa por 100 mil habitantes | Valores ≥ 0 |
+| `apreensao_drogas` | Apreensão de drogas | Casos | Taxa por 100 mil habitantes | Agregação de registros relacionados a uso/porte, tráfico e apreensão |
+| `posse_drogas` | Registros relacionados à posse de drogas | Casos | Taxa por 100 mil habitantes | Valores ≥ 0 |
+| `trafico_drogas` | Registros relacionados ao tráfico de drogas | Casos | Taxa por 100 mil habitantes | Valores ≥ 0 |
+| `apreensao_drogas_sem_autor` | Registros de apreensão de drogas sem autor | Casos | Taxa por 100 mil habitantes | Valores ≥ 0 |
+| `recuperacao_veiculos` | Recuperação de veículo | Casos | Taxa por 100 mil veículos | O veículo pode ter sido subtraído em outro mês ou em outra área |
+| `apf` | Auto de Prisão em Flagrante | Autores | Taxa por 100 mil habitantes | Valores ≥ 0 |
+| `aaapai` | Auto de Apreensão de Adolescente por Prática de Ato Infracional | Adolescentes infratores | Taxa por 100 mil habitantes | Valores ≥ 0 |
+| `cmp` | Cumprimento de Mandado de Prisão | Autores | Taxa por 100 mil habitantes | Valores ≥ 0 |
+| `cmba` | Cumprimento de Mandado de Busca e Apreensão | Adolescentes infratores | Taxa por 100 mil habitantes | Valores ≥ 0 |
+| `ameaca` | Ameaça | Vítimas | Taxa por 100 mil habitantes | Valores ≥ 0 |
+| `pessoas_desaparecidas` | Pessoas desaparecidas | Vítimas | Taxa por 100 mil habitantes | Valores ≥ 0 |
+| `encontro_cadaver` | Encontro de cadáver | Vítimas | Taxa por 100 mil habitantes | Valores ≥ 0 |
+| `encontro_ossada` | Encontro de ossada | Vítimas | Taxa por 100 mil habitantes | Valores ≥ 0 |
+| `pol_militares_mortos_serv` | Policiais Militares mortos em serviço | Vítimas | Taxa por 100 mil policiais | Valores ≥ 0 |
+| `pol_civis_mortos_serv` | Policiais Civis mortos em serviço | Vítimas | Taxa por 100 mil policiais | Valores ≥ 0 |
+| `registro_ocorrencias` | Total de registros de ocorrências divulgados no mês | Casos | Taxa por 100 mil habitantes | Valores ≥ 0 |
+
+#### Campos adicionados nas versões mais recentes das bases
+
+Os dicionários oficiais consultados foram atualizados em janeiro de 2021 e, portanto, não apresentam os campos abaixo. Eles estão presentes nos arquivos atuais `BaseDPEvolucaoMensalCisp.csv` e `BaseMunicipioMensal.csv` utilizados neste projeto.
+
+| Campo | Tabelas | Tipo na Bronze | Descrição utilizada no projeto | Domínio |
+|---|---|---|---|---|
+| `feminicidio` | `dp_municipio`, `ocorrencias_municipio` | `int` | Número de registros de feminicídio disponibilizados pela fonte atual. | Inteiros ≥ 0 ou `NULL` nos períodos anteriores à disponibilização do indicador |
+| `tentativa_feminicidio` | `dp_municipio`, `ocorrencias_municipio` | `int` | Número de registros de tentativa de feminicídio disponibilizados pela fonte atual. | Inteiros ≥ 0 ou `NULL` nos períodos anteriores à disponibilização do indicador |
+
+#### Tipos dos indicadores na Bronze
+
+| Tabela | Tipo dos indicadores |
 |---|---|
-| `bronze.dp_municipio` | [`BaseDpDicionarioDeVariaveis.xlsx`](BaseDpDicionarioDeVariaveis.xlsx) |
-| `bronze.ocorrencias_municipio` | [`BaseMunicipioMensalDicionarioDeVariaveis.xlsx`](BaseMunicipioMensalDicionarioDeVariaveis.xlsx) |
-| `bronze.taxas_municipio` | [`DicionarioDeVariaveisBaseMunicipioTaxaMes.xlsx`](DicionarioDeVariaveisBaseMunicipioTaxaMes.xlsx) |
-
-#### Grupos de variáveis
-
-As variáveis presentes nas tabelas foram organizadas conforme os grupos definidos nos dicionários oficiais do ISP-RJ.
-
-- **Crimes violentos:** `hom_doloso`, `lesao_corp_morte`, `latrocinio`, `cvli`, `hom_por_interv_policial`, `letalidade_violenta`, `tentat_hom`, `feminicidio`, `tentativa_feminicidio`, `lesao_corp_dolosa`, `estupro`.
-
-- **Crimes de trânsito:** `hom_culposo`, `lesao_corp_culposa`.
-
-- **Roubos:** `roubo_transeunte`, `roubo_celular`, `roubo_em_coletivo`, `roubo_rua`, `roubo_veiculo`, `roubo_carga`, `roubo_comercio`, `roubo_residencia`, `roubo_banco`, `roubo_cx_eletronico`, `roubo_conducao_saque`, `roubo_apos_saque`, `roubo_bicicleta`, `outros_roubos`, `total_roubos`.
-
-- **Furtos:** `furto_veiculos`, `furto_transeunte`, `furto_coletivo`, `furto_celular`, `furto_bicicleta`, `outros_furtos`, `total_furtos`.
-
-- **Outros crimes contra o patrimônio:** `sequestro`, `extorsao`, `sequestro_relampago`, `estelionato`.
-
-- **Atividade policial:** `apreensao_drogas`, `posse_drogas`, `trafico_drogas`, `apreensao_drogas_sem_autor`, `recuperacao_veiculos`, `apf`, `aaapai`, `cmp`, `cmba`.
-
-- **Outros registros:** `ameaca`, `pessoas_desaparecidas`, `encontro_cadaver`, `encontro_ossada`, `pol_militares_mortos_serv`, `pol_civis_mortos_serv`.
-
-- **Registros de ocorrências:** `registro_ocorrencias`, correspondente ao total consolidado.
-
-- **Controle de versão da fonte:** `fase`, em que:
-  - `2` = consolidado sem errata;
-  - `3` = consolidado com errata.
-
-> Os campos `feminicidio` e `tentativa_feminicidio` estão presentes apenas em `dp_municipio` e `ocorrencias_municipio`. A tabela `taxas_municipio` não possui essas duas variáveis.
-
-#### Tipo dos indicadores
-
-Nas tabelas `dp_municipio` e `ocorrencias_municipio`, os indicadores são armazenados como **contagens absolutas**, utilizando tipo inteiro.
-
-Na tabela `taxas_municipio`, os indicadores correspondentes são apresentados como **taxas**, geralmente por 100 mil habitantes ou por outras bases de referência, como veículos ou policiais, conforme definido no dicionário oficial de cada campo. Na camada Silver, esses valores são convertidos e armazenados como tipo `double`.
+| `bronze.dp_municipio` | `integer` para os indicadores de contagem |
+| `bronze.ocorrencias_municipio` | `integer` para os indicadores de contagem |
+| `bronze.taxas_municipio` | `string` na ingestão, pois os valores decimais chegam com vírgula; a conversão para `double` ocorre na Silver |
 
 #### Linhagem da camada Bronze
 
-As tabelas Bronze são derivadas diretamente dos arquivos CSV originais disponibilizados pelo ISP-RJ, sem aplicação de transformações de limpeza ou padronização dos indicadores.
+| Tabela Bronze | Origem | Transformações na ingestão |
+|---|---|---|
+| `bronze.dp_municipio` | `BaseDPEvolucaoMensalCisp.csv` | Preservação dos campos da fonte + `fonte_arquivo` e `data_ingestao` |
+| `bronze.ocorrencias_municipio` | `BaseMunicipioMensal.csv` | Preservação dos campos da fonte + `fonte_arquivo` e `data_ingestao` |
+| `bronze.taxas_municipio` | `BaseMunicipioTaxaMes.csv` | Preservação dos campos da fonte + `fonte_arquivo` e `data_ingestao` |
 
-| Tabela Bronze | Arquivo de origem |
-|---|---|
-| `bronze.dp_municipio` | `BaseDPEvolucaoMensalCisp.csv` |
-| `bronze.ocorrencias_municipio` | `BaseMunicipioMensal.csv` |
-| `bronze.taxas_municipio` | `BaseMunicipioTaxaMes.csv` |
+Nenhuma limpeza, deduplicação, substituição de valores ou padronização dos indicadores é realizada na camada Bronze. Esses tratamentos são executados posteriormente na camada Silver.
 
-Além dos campos presentes nos arquivos originais, foram adicionadas apenas as colunas de controle `fonte_arquivo` e `data_ingestao`, utilizadas para rastrear a origem e o momento da ingestão de cada registro.
+### SILVER 
 
-### SILVER (as 3 tabelas)
+A camada Silver é derivada diretamente das três tabelas Bronze. Os indicadores criminais mantêm o mesmo significado, unidade e definição apresentados no catálogo da camada Bronze e nos dicionários oficiais do ISP-RJ.
 
-As tabelas Silver mantêm os indicadores das respectivas tabelas Bronze, porém após os tratamentos de qualidade, tipagem e padronização realizados no pipeline.
+Nesta camada são realizados tratamentos de qualidade, padronização, tipagem e validação. Portanto, o catálogo abaixo destaca a estrutura final de cada tabela e as alterações realizadas em relação à Bronze.
 
-A descrição e o domínio dos indicadores permanecem os mesmos definidos nos dicionários oficiais do ISP-RJ apresentados na camada Bronze. As alterações realizadas na Silver estão relacionadas principalmente aos tipos dos campos, tratamento de valores nulos, padronização e remoção de duplicidades.
+---
 
-| Tabela Silver | Origem | Chave (grão) | Principais alterações |
+#### `projeto_seguranca_rj.silver.dp_municipio`
+
+**Origem:** `projeto_seguranca_rj.bronze.dp_municipio`
+
+**Grão / chave utilizada no tratamento:**
+
+```text
+cisp + munic + ano + mes
+```
+
+A tabela mantém os indicadores criminais da fonte por CISP, após tratamento de duplicidades, valores nulos e padronização dos campos de identificação.
+
+| Campo / grupo | Tipo na Silver | Descrição / tratamento | Domínio |
 |---|---|---|---|
-| `silver.dp_municipio` | `bronze.dp_municipio` | `cisp + munic + ano + mes` | Identificadores convertidos para `string`, tratamento de nulos, remoção de duplicidades por `fase` e padronização de `regiao` |
-| `silver.ocorrencias_municipio` | `bronze.ocorrencias_municipio` | `fmun_cod + ano + mes` | `fmun_cod` convertido para `string`, tratamento de nulos e criação de `data_referencia` |
-| `silver.taxas_municipio` | `bronze.taxas_municipio` | `fmun_cod + ano + mes` | `fmun_cod` convertido para `string`, conversão das taxas para `double` e tratamento de valores nulos em `regiao` |
+| `cisp` | `string` | Código da Circunscrição Integrada de Segurança Pública. Convertido de número para texto por representar um identificador. | Códigos de CISP presentes na fonte |
+| `aisp` | `string` | Código da Área Integrada de Segurança Pública. | Códigos de AISP presentes na fonte |
+| `risp` | `string` | Código da Região Integrada de Segurança Pública. | Códigos de RISP presentes na fonte |
+| `mcirc` | `string` | Código do município associado à circunscrição. Convertido para texto por ser identificador. | Códigos presentes na fonte |
+| `munic` | `string` | Município associado à CISP no respectivo período. | Municípios registrados pela fonte |
+| `regiao` | `string` | Região de segurança pública. Valores com problemas de encoding contendo `Niter` foram padronizados para `Grande Niterói`. | `Capital`, `Baixada Fluminense`, `Grande Niterói`, `Interior` |
+| `ano` | `int` | Ano de referência do registro. | 2003–2026 no conjunto utilizado |
+| `mes` | `int` | Mês de referência. | 1–12 |
+| `mes_ano` | `string` | Representação textual de mês e ano herdada da fonte. | Valores mensais da fonte |
+| `fase` | `int` | Fase de consolidação do registro. Utilizada na resolução de duplicidades. | `2` ou `3` |
+| `fonte_arquivo` | `string` | Nome do arquivo utilizado na ingestão. | `BaseDPEvolucaoMensalCisp.csv` |
+| `data_ingestao` | `timestamp` | Data e hora da execução da carga Bronze. | Timestamp de ingestão |
 
-#### Tipos e domínios na Silver
+Os indicadores criminais permanecem como contagens inteiras não negativas, mantendo as definições apresentadas no catálogo Bronze.
 
-- Os indicadores de `silver.dp_municipio` e `silver.ocorrencias_municipio` permanecem como contagens inteiras não negativas.
-- Os códigos `cisp`, `aisp`, `risp`, `mcirc` e `fmun_cod` são armazenados como `string`, pois representam identificadores e não valores numéricos destinados a cálculos.
-- Os indicadores de `silver.taxas_municipio` são armazenados como `double`.
-- `ano` e `mes` permanecem como valores inteiros.
-- `data_referencia`, quando criada, utiliza o tipo `date` e representa o primeiro dia do mês apenas como convenção temporal.
+Os campos abaixo apresentavam valores nulos em determinados períodos e foram tratados com `coalesce()`, substituindo `NULL` por `0`:
 
-**Linhagem:** cada tabela Silver é derivada diretamente de sua respectiva tabela Bronze. Nenhuma das três tabelas Silver realiza `JOIN` entre fontes. Os tratamentos específicos aplicados a cada uma estão detalhados nas seções de Pipeline e Qualidade de Dados.
+```text
+feminicidio
+tentativa_feminicidio
+roubo_cx_eletronico
+roubo_bicicleta
+furto_bicicleta
+posse_drogas
+trafico_drogas
+apreensao_drogas_sem_autor
+apf
+aaapai
+cmp
+cmba
+```
+
+Após o tratamento:
+
+| Campos | Tipo | Domínio |
+|---|---|---|
+| Indicadores criminais e policiais | `int` | Inteiros ≥ 0 |
+| Campos tratados com `coalesce()` | `int` | Inteiros ≥ 0, sem `NULL` após o tratamento |
+
+> O valor `0` nos períodos anteriores à disponibilização de alguns indicadores não deve ser interpretado automaticamente como ausência de ocorrência. Essa limitação foi considerada nas análises, especialmente nos indicadores de feminicídio.
+
+##### Tratamento de duplicidades
+
+Inicialmente são removidas linhas completamente idênticas utilizando:
+
+```python
+dropDuplicates()
+```
+
+Quando existem registros com a mesma combinação:
+
+```text
+cisp + munic + ano + mes
+```
+
+mas com diferentes valores de `fase`, é mantido o registro com a maior `fase`, utilizando uma janela com `row_number()` ordenada por `fase` de forma decrescente.
+
+Ao final do processo é realizada uma nova validação de unicidade para garantir que exista apenas uma linha por chave.
+
+##### Linhagem
+
+```text
+BaseDPEvolucaoMensalCisp.csv
+        ↓
+bronze.dp_municipio
+        ↓
+tipagem de identificadores
+tratamento de nulos
+remoção de duplicatas exatas
+seleção da maior fase por chave
+padronização de regiao
+        ↓
+silver.dp_municipio
+```
+
+---
+
+#### `projeto_seguranca_rj.silver.ocorrencias_municipio`
+
+**Origem:** `projeto_seguranca_rj.bronze.ocorrencias_municipio`
+
+**Grão / chave:**
+
+```text
+fmun_cod + ano + mes
+```
+
+A tabela mantém as contagens mensais de ocorrências por município e adiciona uma representação temporal padronizada para uso nas etapas posteriores.
+
+| Campo / grupo | Tipo na Silver | Descrição / tratamento | Domínio |
+|---|---|---|---|
+| `fmun_cod` | `string` | Código IBGE do município. Convertido para texto porque representa um identificador. | Códigos IBGE presentes na fonte |
+| `fmun` | `string` | Nome do município. | Municípios do Estado do Rio de Janeiro |
+| `regiao` | `string` | Região associada ao município. | `Capital`, `Baixada Fluminense`, `Grande Niterói`, `Interior` |
+| `ano` | `int` | Ano de referência. | 2014–2026 no conjunto utilizado |
+| `mes` | `int` | Mês de referência. | 1–12 |
+| `mes_ano` | `string` | Referência textual de mês e ano herdada da fonte. | Valores mensais da fonte |
+| `fase` | `int` | Fase de consolidação do registro. | Valores disponibilizados pela fonte |
+| `data_referencia` | `date` | Data criada a partir de `ano` e `mes`, utilizando o primeiro dia do mês como convenção temporal. | Datas mensais no formato `AAAA-MM-01` |
+| `fonte_arquivo` | `string` | Nome do arquivo utilizado na ingestão. | `BaseMunicipioMensal.csv` |
+| `data_ingestao` | `timestamp` | Data e hora da execução da carga Bronze. | Timestamp de ingestão |
+
+Os indicadores criminais permanecem como contagens inteiras não negativas e mantêm as mesmas definições do catálogo Bronze.
+
+Os campos:
+
+```text
+feminicidio
+tentativa_feminicidio
+```
+
+possuíam valores nulos nos períodos anteriores à disponibilização desses indicadores. Na Silver esses valores foram convertidos para `0` utilizando `coalesce()`.
+
+| Campos | Tipo | Domínio após tratamento |
+|---|---|---|
+| Indicadores criminais | `int` | Inteiros ≥ 0 |
+| `feminicidio` | `int` | Inteiros ≥ 0, sem `NULL` |
+| `tentativa_feminicidio` | `int` | Inteiros ≥ 0, sem `NULL` |
+
+A chave:
+
+```text
+fmun_cod + ano + mes
+```
+
+foi validada e não apresentou duplicidades na versão utilizada no projeto.
+
+Também foi realizada uma validação dos campos obrigatórios:
+
+```text
+fmun_cod
+fmun
+ano
+mes
+```
+
+para evitar a persistência de registros sem identificação temporal ou municipal.
+
+##### Criação de `data_referencia`
+
+A coluna foi construída da seguinte forma:
+
+```text
+ano = 2024
+mes = 10
+
+→ data_referencia = 2024-10-01
+```
+
+O dia `01` não representa a data da ocorrência. Ele é utilizado apenas como convenção para representar o respectivo mês em um campo do tipo `date`.
+
+##### Linhagem
+
+```text
+BaseMunicipioMensal.csv
+        ↓
+bronze.ocorrencias_municipio
+        ↓
+conversão de fmun_cod para string
+validação de chave
+tratamento dos nulos de feminicídio
+criação de data_referencia
+        ↓
+silver.ocorrencias_municipio
+```
+
+---
+
+#### `projeto_seguranca_rj.silver.taxas_municipio`
+
+**Origem:** `projeto_seguranca_rj.bronze.taxas_municipio`
+
+**Grão / chave:**
+
+```text
+fmun_cod + ano + mes
+```
+
+Essa tabela representa os indicadores em forma de taxa. Na Bronze, os valores numéricos chegam como `string`, utilizando vírgula como separador decimal. Na Silver eles são convertidos para valores numéricos.
+
+| Campo / grupo | Tipo na Silver | Descrição / tratamento | Domínio |
+|---|---|---|---|
+| `fmun_cod` | `string` | Código IBGE do município. Convertido para texto por representar um identificador. | Códigos IBGE presentes na fonte |
+| `fmun` | `string` | Nome do município. | Municípios do Estado do Rio de Janeiro |
+| `regiao` | `string` | Região associada ao município. Valores nulos foram substituídos por `NAO_INFORMADO`. | `Capital`, `Baixada Fluminense`, `Grande Niterói`, `Interior`, `NAO_INFORMADO` |
+| `ano` | `int` | Ano de referência. | 2014–2024 no conjunto utilizado |
+| `mes` | `int` | Mês de referência. | 1–12 |
+| `mes_ano` | `string` | Referência textual de mês e ano herdada da fonte. | Valores mensais da fonte |
+| `fase` | `int` | Fase de consolidação do registro. | Valores disponibilizados pela fonte |
+| `fonte_arquivo` | `string` | Nome do arquivo utilizado na ingestão. | `BaseMunicipioTaxaMes.csv` |
+| `data_ingestao` | `timestamp` | Data e hora da execução da carga Bronze. | Timestamp de ingestão |
+
+##### Conversão dos indicadores de taxa
+
+As `53` colunas de taxas recebidas como texto são convertidas para `double`.
+
+O tratamento aplicado é:
+
+```text
+"0,55"
+   ↓
+substituição da vírgula pelo ponto
+   ↓
+"0.55"
+   ↓
+cast para double
+   ↓
+0.55
+```
+
+As colunas convertidas são:
+
+```text
+hom_doloso
+lesao_corp_morte
+latrocinio
+cvli
+hom_por_interv_policial
+letalidade_violenta
+tentat_hom
+lesao_corp_dolosa
+estupro
+hom_culposo
+lesao_corp_culposa
+roubo_transeunte
+roubo_celular
+roubo_em_coletivo
+roubo_rua
+roubo_veiculo
+roubo_carga
+roubo_comercio
+roubo_residencia
+roubo_banco
+roubo_cx_eletronico
+roubo_conducao_saque
+roubo_apos_saque
+roubo_bicicleta
+outros_roubos
+total_roubos
+furto_veiculos
+furto_transeunte
+furto_coletivo
+furto_celular
+furto_bicicleta
+outros_furtos
+total_furtos
+sequestro
+extorsao
+sequestro_relampago
+estelionato
+apreensao_drogas
+posse_drogas
+trafico_drogas
+apreensao_drogas_sem_autor
+recuperacao_veiculos
+apf
+aaapai
+cmp
+cmba
+ameaca
+pessoas_desaparecidas
+encontro_cadaver
+encontro_ossada
+pol_militares_mortos_serv
+pol_civis_mortos_serv
+registro_ocorrencias
+```
+
+Após a transformação:
+
+| Campos | Tipo na Bronze | Tipo na Silver | Domínio |
+|---|---|---|---|
+| 53 indicadores de taxa | `string` | `double` | Valores decimais ≥ 0 |
+| `fmun_cod` | `int` | `string` | Código identificador |
+| `regiao` | `string` | `string` | Categorias regionais ou `NAO_INFORMADO` |
+
+A conversão das 53 colunas é validada após o `cast`. Caso algum valor não possa ser convertido adequadamente e resulte em `NULL`, a validação interrompe o pipeline.
+
+##### Tratamento dos nulos de `regiao`
+
+Foram encontrados `3` registros com:
+
+```text
+regiao = NULL
+```
+
+Esses registros foram preservados e receberam:
+
+```text
+NAO_INFORMADO
+```
+
+Nenhuma região existente foi atribuída artificialmente aos registros.
+
+A chave:
+
+```text
+fmun_cod + ano + mes
+```
+
+também foi validada e não apresentou duplicidades na versão utilizada.
+
+##### Linhagem
+
+```text
+BaseMunicipioTaxaMes.csv
+        ↓
+bronze.taxas_municipio
+        ↓
+conversão de fmun_cod para string
+vírgula → ponto nas taxas
+conversão de 53 indicadores para double
+tratamento de regiao nula
+validação da chave
+        ↓
+silver.taxas_municipio
+```
+
+---
+
+#### Resumo das alterações Bronze → Silver
+
+| Tabela Silver | Principais alterações |
+|---|---|
+| `silver.dp_municipio` | Identificadores convertidos para `string`; tratamento de nulos; remoção de duplicatas exatas; seleção da maior `fase`; padronização de `Grande Niterói`; validação de unicidade |
+| `silver.ocorrencias_municipio` | `fmun_cod` convertido para `string`; tratamento de nulos em `feminicidio` e `tentativa_feminicidio`; criação de `data_referencia`; validação dos campos obrigatórios e da chave |
+| `silver.taxas_municipio` | `fmun_cod` convertido para `string`; 53 taxas convertidas para `double`; 3 valores nulos de `regiao` tratados como `NAO_INFORMADO`; validação da conversão e da chave |
+
+As descrições semânticas dos indicadores permanecem as mesmas apresentadas no catálogo da camada Bronze. A camada Silver altera principalmente a representação técnica e a qualidade dos dados, sem modificar o significado dos indicadores originais.
+
+<p align="center">
+  <img src="./image_1790559507621.png" width="40%">
+</p>
+
+<p align="center">
+  <em>Evidência das tabelas <code>silver.dp_municipio</code>, <code>silver.ocorrencias_municipio</code> e <code>silver.taxas_municipio</code> persistidas no Unity Catalog do Databricks.</em>
+</p>
+
 
 ### GOLD — Catálogo detalhado (tabelas criadas nesta etapa, sem dicionário externo)
 
@@ -385,8 +801,15 @@ A descrição e o domínio dos indicadores permanecem os mesmos definidos nos di
 
 **Linhagem:** derivada de `silver.dp_municipio`, sem realização de join. Foram adicionadas métricas derivadas e operações de janela temporal por CISP. A correção de encoding do campo `regiao` já é herdada da camada Silver.
 
-![image_1790430041834.png](./image_1790430041834.png "image_1790430041834.png")    ![image_1790430057617.png](./image_1790430057617.png "image_1790430057617.png")  ![image_1790430070014.png](./image_1790430070014.png "image_1790430070014.png")
+<p align="center">
+  <img src="./imagens/image_1790430041834.png" width="30%">
+  <img src="./imagens/image_1790430057617.png" width="30%">
+  <img src="./imagens/image_1790430070014.png" width="30%">
+</p>
 
+<p align="center">
+  <em>Figura 1 — Evidências da estrutura e persistência das tabelas da camada Gold no Unity Catalog.</em>
+</p>
 
 
 ## PIPELINE DE DADOS (Etapa 4.4)
@@ -417,7 +840,7 @@ O pipeline foi dividido por camada e por fonte, mantendo cada notebook responsá
 - Leitura dos três arquivos CSV com `delimiter=";"` e `encoding="latin1"`;
 - gravação das tabelas utilizando `mode("overwrite")`;
 - manutenção da ingestão de forma idempotente, evitando duplicações em novas execuções;
-- validação da quantidade de linhas carregadas em relação ao total esperado de cada arquivo.
+- validação da quantidade de linhas do DataFrame de origem em relação à tabela Bronze persistida, interrompendo a execução caso haja divergência.
 
 > Os arquivos disponibilizados pelo ISP-RJ contêm o histórico completo a cada download. Por isso, o uso de `append` poderia duplicar os registros em execuções posteriores.
 
@@ -519,7 +942,13 @@ Nesta etapa são realizados:
 - [`05_analise_seguranca_rj.py`](notebooks/05_analise_seguranca_rj.py)
 - [`setup_crime.ipynb`](notebooks/setup_crime.ipynb)
 
-![image_1790431263244.png](./image_1790431263244.png "image_1790431263244.png")
+<p align="center">
+  <img src="./imagens/image_1790431263244.png" width="50%">
+</p>
+
+<p align="center">
+  <em>Figura 2 — Evidência das tabelas persistidas no ambiente Databricks após a execução do pipeline.</em>
+</p>
 
 ## QUALIDADE DOS DADOS (Etapa 4.5)
 
@@ -561,7 +990,13 @@ cisp, munic, ano, mes
 
 e ordenada por `fase` de forma decrescente.
 
-![image_1790433371179.png](./image_1790433371179.png "image_1790433371179.png")
+<p align="center">
+  <img src="./imagens/image_1790433371179.png" width="85%">
+</p>
+
+<p align="center">
+  <em>Figura 3 — Evidência do tratamento de registros duplicados em <code>dp_municipio</code>, priorizando a maior <code>fase</code> para cada chave temporal.</em>
+</p>
 
 
 ---
@@ -590,8 +1025,13 @@ Grande Niterói
 
 Dessa forma, os registros passaram a utilizar uma única representação da região.
 
-![image_1790433135932.png](./image_1790433135932.png "image_1790433135932.png")
+<p align="center">
+  <img src="./imagens/image_1790433135932.png" width="60%">
+</p>
 
+<p align="center">
+  <em>Figura 4 — Evidência da padronização do campo <code>regiao</code>, unificando os registros de Grande Niterói.</em>
+</p>
 ---
 
 ### 3. Cobertura temporal diferente entre as fontes
@@ -622,31 +1062,25 @@ Para a análise de recuperação de veículos foi utilizado o indicador `indice_
 
 ### 4. Consistência de `letalidade_violenta` e seus componentes
 
-O indicador `letalidade_violenta` foi comparado com os componentes presentes na própria base.
-
-Primeiro foi validado o indicador `cvli`:
+O indicador `letalidade_violenta` foi comparado com a soma dos quatro componentes utilizados em sua definição:
 
 ```text
-cvli = hom_doloso + lesao_corp_morte + latrocinio
+letalidade_calculada =
+hom_doloso
++ lesao_corp_morte
++ latrocinio
++ hom_por_interv_policial
 ```
+Na tabela utilizada para a construção da fato_criminalidade_cisp, foram encontradas divergências em 173 de 38.273 registros analisados, correspondendo a aproximadamente 0,45%.
+Essas divergências não foram corrigidas automaticamente pelo pipeline, pois os valores já estavam presentes dessa forma na fonte original. A verificação foi mantida na camada Gold como uma checagem de consistência, permitindo acompanhar esse percentual a cada nova execução.
 
-Essa composição apresentou correspondência em `100%` das `38.958` linhas analisadas.
+<p align="center">
+  <img src="./imagens/image_1790477388609.png" width="80%">
+</p>
 
-Em seguida foi verificada a relação:
-
-```text
-letalidade_violenta = cvli + hom_por_interv_policial
-```
-
-Foram encontradas divergências em `173` linhas entre `38.273` registros analisados, correspondendo a aproximadamente `0,45%` dos registros.
-
-![image_1790477388609.png](./image_1790477388609.png "image_1790477388609.png")
-
-```text
-fase = 3
-```
-
-**Tratamento:** como os valores já estavam presentes dessa forma na fonte, eles não foram alterados pelo pipeline. A divergência foi documentada e uma validação foi mantida na camada Gold para acompanhar esse percentual a cada nova execução.
+<p align="center">
+  <em>Figura 5 — Verificação da consistência entre o indicador <code>letalidade_violenta</code> e a soma de seus componentes, com 173 divergências em 38.273 registros analisados (0,45%).</em>
+</p>
 
 ---
 
@@ -708,7 +1142,13 @@ Percentual: 9,42%
 
 Esses valores não foram removidos ou limitados, pois fazem parte da característica do indicador e foram considerados uma limitação metodológica da análise.
 
-![image_1790434121563.png](./image_1790434121563.png "image_1790434121563.png")
+<p align="center">
+  <img src="./imagens/image_1790554480747.png" width="60%">
+</p>
+
+<p align="center">
+  <em>Figura 6 — Verificação dos registros em que o índice de recuperação de veículos é superior a 1.</em>
+</p>
 
 ---
 
@@ -853,7 +1293,7 @@ O problema de duplicidade foi identificado principalmente em `dp_municipio` e tr
 
 - **Consistência:** também foram avaliados os valores do campo `regiao`, verificando se as categorias estavam padronizadas. O principal problema encontrado ocorreu em `dp_municipio`, onde `Grande Niterói` apresentava problemas de encoding. Após o tratamento, os valores foram normalizados.
 
-- **Acurácia e plausibilidade:** foram avaliadas relações internas entre indicadores para verificar se os valores apresentavam comportamento coerente com suas definições. Entre essas verificações estão a comparação de `cvli` com seus componentes, a relação entre `letalidade_violenta` e seus quatro componentes e a análise dos casos em que `indice_recuperacao_veiculos > 1`. As divergências encontradas foram investigadas e documentadas, sem alteração automática dos valores originais.
+- **Acurácia e plausibilidade:** foram avaliadas relações internas entre indicadores para verificar se os valores apresentavam comportamento coerente com suas definições. Entre essas verificações estão a relação entre `letalidade_violenta` e seus quatro componentes e a análise dos casos em que `indice_recuperacao_veiculos > 1`. As divergências encontradas foram investigadas e documentadas, sem alteração automática dos valores originais.
 
 ---
 
@@ -914,7 +1354,13 @@ Isso corresponde a **65,9% dos outliers**, indicando que essas CISPs não apenas
 
 Esse resultado reforça a evidência de concentração geográfica observada na Pergunta 2.
 
-![image_1790437878803.png](./image_1790437878803.png "image_1790437878803.png")
+<p align="center">
+  <img src="./imagens/image_1790437878803.png" width="60%">
+</p>
+
+<p align="center">
+  <em>Figura 7 — Cruzamento dos outliers de <code>crimes_patrimoniais</code> da Capital com as cinco CISPs de maior volume acumulado, que concentram 65,9% dos registros classificados como outliers.</em>
+</p>
 
 
 ## ANÁLISE DE DADOS (Etapa 4.5)
@@ -929,7 +1375,11 @@ Esse resultado reforça a evidência de concentração geográfica observada na 
 ### Pergunta 1 — Como o volume de crimes violentos evoluiu por região do Estado do Rio de Janeiro entre 2003 e 2026?
 
 <p align="center">
-  <img width="1102" height="504" alt="Crimes violentos por região" src="https://github.com/user-attachments/assets/7faf3e9a-a6bc-4dba-969e-f59108f39b1d">
+  <img src="./imagens/image_1790555542334.png" width="90%">
+</p>
+
+<p align="center">
+  <em>Figura 8 — Evolução dos registros de crimes violentos por região do Estado do Rio de Janeiro entre 2003 e 2026.</em>
 </p>
 
 <p align="justify">
@@ -949,7 +1399,11 @@ Esse resultado reforça a evidência de concentração geográfica observada na 
 </p>
 
 <p align="center">
-  <img width="241" height="87" alt="Cobertura temporal dos dados" src="https://github.com/user-attachments/assets/a210f1c1-7d27-4b2c-a8b1-0ff57236dc52">
+  <img src="./imagens/image_1790555641308.png" width="50%">
+</p>
+
+<p align="center">
+  <em>Figura 9 — Verificação da cobertura temporal da série histórica, evidenciando que os dados de 2026 estão disponíveis somente até agosto.</em>
 </p>
 
 <p align="justify">
@@ -961,7 +1415,11 @@ Esse resultado reforça a evidência de concentração geográfica observada na 
 ### Pergunta 2 — Quais CISPs da Capital concentram os maiores volumes de crimes patrimoniais, considerando roubo de rua e furtos?
 
 <p align="center">
-  <img width="664" height="393" alt="CISPs com maior volume de crimes patrimoniais" src="https://github.com/user-attachments/assets/b6666d6f-384b-4311-aa15-eafedc4e0843">
+  <img src="./imagens/image_1790555330248.png" width="90%">
+</p>
+
+<p align="center">
+  <em>Figura 10 — Ranking das CISPs da Capital por volume acumulado de crimes patrimoniais, considerando roubo de rua e total de furtos.</em>
 </p>
 
 <p align="justify">
@@ -985,7 +1443,11 @@ Esse resultado reforça a evidência de concentração geográfica observada na 
 ### Pergunta 3 — Existe associação entre a atividade policial de um mês e a quantidade de crimes patrimoniais registrada no mês seguinte?
 
 <p align="center">
-  <img width="560" height="404" alt="Correlação entre atividade policial e crimes patrimoniais" src="https://github.com/user-attachments/assets/4391b002-7ddb-443e-ab69-7e42e0985924">
+  <img src="./imagens/image_1790555728970.png" width="90%">
+</p>
+
+<p align="center">
+  <em>Figura 11 — Relação entre a atividade policial de um mês e o volume de crimes patrimoniais registrado no mês seguinte.</em>
 </p>
 
 <p align="justify">
@@ -1026,7 +1488,11 @@ Capital              → 0,450
 ### Pergunta 4 — Como o índice de recuperação de veículos evoluiu ao longo dos anos e entre as regiões?
 
 <p align="center">
-  <img width="832" height="395" alt="Índice de recuperação de veículos por região" src="https://github.com/user-attachments/assets/127bf4c9-aeda-420b-8c26-39e9127b2cbc">
+  <img src="./imagens/image_1790555769715.png" width="90%">
+</p>
+
+<p align="center">
+  <em>Figura 12 — Evolução do índice de recuperação de veículos por região e ano.</em>
 </p>
 
 <p align="justify">
@@ -1060,7 +1526,11 @@ Percentual: 9,42%
 ### Pergunta 5 — Como evoluíram mensalmente os registros de feminicídio e tentativa de feminicídio a partir de outubro de 2024?
 
 <p align="center">
-  <img width="810" height="372" alt="Evolução mensal de feminicídio e tentativa de feminicídio" src="https://github.com/user-attachments/assets/0474e6ba-1a5f-42f6-aaa6-840aeaec83ad">
+  <img src="./imagens/image_1790555813129.png" width="90%">
+</p>
+
+<p align="center">
+  <em>Figura 13 — Evolução mensal dos registros de feminicídio e tentativa de feminicídio a partir de outubro de 2024.</em>
 </p>
 
 <p align="justify">
@@ -1072,7 +1542,11 @@ Percentual: 9,42%
 </p>
 
 <p align="center">
-  <img width="526" height="464" alt="Maiores registros mensais de feminicídio e tentativa de feminicídio" src="https://github.com/user-attachments/assets/c545171d-f3e7-4b90-b214-0b78a24049c5">
+  <img src="./imagens/image_1790555845226.png" width="80%">
+</p>
+
+<p align="center">
+  <em>Figura 14 — Destaque dos maiores registros mensais de feminicídio e tentativa de feminicídio no período analisado.</em>
 </p>
 
 <p align="justify">
@@ -1092,19 +1566,35 @@ Percentual: 9,42%
 ### Pergunta 6 — Quais meses apresentam os maiores registros de roubo de rua e roubo a estabelecimento comercial em cada ano, e esses meses de maior ocorrência se repetem ao longo dos anos?
 
 <p align="center">
-  <img width="670" height="330" alt="Meses com maior roubo de rua em cada ano" src="https://github.com/user-attachments/assets/5b9a8380-cd19-4277-9352-ebac72e4d24e">
+  <img src="./imagens/image_1790555874367.png" width="90%">
 </p>
 
 <p align="center">
-  <img width="676" height="317" alt="Meses com maior roubo a comércio em cada ano" src="https://github.com/user-attachments/assets/ea398d87-7216-4023-9be1-845fbe4e8f45">
+  <em>Figura 15 — Distribuição mensal dos registros de roubo de rua utilizada na análise de sazonalidade.</em>
 </p>
 
 <p align="center">
-  <img width="236" height="361" alt="Frequência dos meses de maior roubo de rua" src="https://github.com/user-attachments/assets/d2a4dc22-cf96-46c6-a536-28cbd89a2028">
+  <img src="./imagens/image_1790555892050.png" width="90%">
 </p>
 
 <p align="center">
-  <img width="327" height="622" alt="Frequência dos meses de maior roubo a comércio" src="https://github.com/user-attachments/assets/52848f9a-25e6-44a6-adcb-30d26f2e9c2b">
+  <em>Figura 16 — Distribuição mensal dos registros de roubo a estabelecimento comercial utilizada na análise de sazonalidade.</em>
+</p>
+
+<p align="center">
+  <img src="./imagens/image_1790555918779.png" width="40%">
+</p>
+
+<p align="center">
+  <em>Figura 17 — Identificação dos meses de maior ocorrência de roubo de rua ao longo dos anos analisados.</em>
+</p>
+
+<p align="center">
+  <img src="./imagens/image_1790555940316.png" width="40%">
+</p>
+
+<p align="center">
+  <em>Figura 18 — Identificação dos meses de maior ocorrência de roubo a estabelecimento comercial ao longo dos anos analisados.</em>
 </p>
 
 <p align="justify">
@@ -1126,8 +1616,9 @@ Julho     → 1 ano
 ```
 
 <p align="justify">
-&emsp;&emsp;No <code>roubo_comercio</code>, janeiro, março e maio foram os meses mais recorrentes, aparecendo como o maior registro anual em <strong>3 anos cada</strong>. Abril e setembro apareceram em <strong>2 anos cada</strong>.
+&emsp;&emsp;No <code>roubo_comercio</code>, janeiro, março e maio foram os meses mais recorrentes, aparecendo como o maior registro anual em <strong>3 anos cada</strong>. Abril e setembro apareceram em <strong>2 anos cada</strong>, enquanto outubro apareceu em <strong>1 ano</strong>. Em 2024 ocorreu um empate entre abril e outubro, ambos com <strong>145 registros</strong>, por isso os dois meses foram considerados como picos daquele ano.
 </p>
+
 
 ```text
 Roubo a estabelecimento comercial
@@ -1137,6 +1628,7 @@ Março      → 3 anos
 Maio       → 3 anos
 Abril      → 2 anos
 Setembro   → 2 anos
+Outubro    → 1 ano
 ```
 
 <p align="justify">
@@ -1173,25 +1665,115 @@ Dessa forma, o pipeline permitiu transformar as bases públicas do ISP-RJ em uma
 
 ## Autoavaliação
 
-De forma geral, considero que os objetivos do MVP foram atingidos. Foi possível construir um pipeline completo no Databricks, passando pelas camadas Bronze, Silver e Gold, organizar os dados em tabelas fato e dimensão e responder às seis perguntas de negócio propostas no início do trabalho.
+De forma geral, considero que os objetivos centrais do MVP foram atingidos: foi possível
+construir um pipeline completo no Databricks, passando pelas camadas Bronze, Silver e Gold,
+organizar os dados em tabelas fato e dimensão, e responder — mesmo que parcialmente em
+alguns casos — às seis perguntas de negócio propostas no início do trabalho.
 
-As análises permitiram observar a evolução dos crimes violentos por região, identificar as CISPs da Capital com maior volume de crimes patrimoniais, verificar a associação entre atividade policial e crimes do mês seguinte, analisar o índice de recuperação de veículos, acompanhar os registros de feminicídio e tentativa de feminicídio e verificar a repetição de meses com maiores registros de roubo de rua e roubo a comércio.
+### Objetivos atingidos
 
-A maior dificuldade durante o desenvolvimento foi trabalhar com o PySpark e entender como organizar corretamente as transformações entre as camadas. No início, montar as tabelas Silver e Gold exigiu bastante atenção, principalmente para definir as chaves, fazer os tratamentos sem perder informações e entender como os dados deveriam chegar até a etapa de análise. Outra dificuldade importante foi a qualidade da base original. Algumas tabelas estavam bastante desorganizadas e apresentavam problemas como duplicidades, valores nulos, diferenças de tipo, campos com vírgula como separador decimal e problemas de encoding. Na base por CISP, por exemplo, foi necessário entender o campo `fase` para identificar por que existiam registros repetidos e manter a versão mais atualizada de cada registro. Também foi necessário corrigir o nome de Grande Niterói, que aparecia com problemas de codificação.
+As análises permitiram observar a evolução dos crimes violentos por região, identificar as
+CISPs da Capital com maior volume de crimes patrimoniais, verificar a associação entre
+atividade policial e crimes do mês seguinte, analisar o índice de recuperação de veículos,
+acompanhar os registros de feminicídio e tentativa de feminicídio, e verificar a repetição de
+meses com maiores registros de roubo de rua e roubo a comércio. Em paralelo, o pipeline
+incorporou validações automáticas de schema e duplicidade, checagens de consistência entre
+indicadores compostos e uma análise estatística de outliers — indo além do mínimo pedido para
+a etapa de Qualidade de Dados.
 
-Esses problemas fizeram com que a etapa Silver fosse uma das partes mais trabalhosas do projeto, pois foi necessário limpar, padronizar e validar os dados antes de utilizá-los. Na Gold, a principal dificuldade foi transformar essas tabelas já tratadas em uma estrutura que realmente ajudasse a responder às perguntas, criando as dimensões, as tabelas fato e as métricas derivadas utilizadas nas análises. Apesar das dificuldades, o trabalho ajudou a entender melhor a função de cada camada da arquitetura Medalhão e a importância de não realizar apenas transformações técnicas, mas também validar se os dados fazem sentido antes de utilizá-los em uma análise.
+### Objetivos não atingidos e limitações
 
-## Trabalhos futuros:
 
-* Incorporar dados de população por município (IBGE) para normalizar comparações regionais na pergunta 1 sem o viés de tamanho populacional.
+- **Pergunta 1 (crimes violentos por região):** a comparação entre regiões ficou limitada a
+  valores absolutos. Não normalizei por população nem pela quantidade de CISPs de cada
+  região, então não dá para afirmar que a Capital é objetivamente "pior" que o Interior —
+  apenas que registra mais ocorrências em números absolutos. Faltou incorporar dados de
+  população do IBGE, que eu sabia desde o início que seriam necessários para uma comparação
+  justa, mas não priorizei dentro do prazo do MVP.
 
-* Ampliar a identificação das CISPs, criando uma tabela de correspondência entre o código da CISP e o nome da delegacia para todas as unidades. Neste MVP, essa identificação foi realizada apenas para as cinco CISPs com maior volume de crimes patrimoniais apresentadas na Pergunta 2.
+- **Pergunta 2 (CISPs da Capital):** identifiquei o nome da delegacia manualmente só para as
+  5 CISPs do ranking. Não construí uma tabela de correspondência completa entre código CISP
+  e nome de delegacia, então o resultado fica pouco legível para quem não conhece os códigos
+  de cor.
 
-* Investigar a causalidade da pergunta 3 com métodos mais robustos (ex.: modelos de painel com efeitos fixos por CISP, para controlar o fato de que  regiões mais violentas naturalmente têm mais atividade policial).
+- **Pergunta 3 (atividade policial x crime do mês seguinte):** não consegui — e sabia desde o
+  desenho da pergunta que não conseguiria, com os dados disponíveis — estabelecer causalidade.
+  A correlação de 0,528 pode ser inteiramente explicada por causalidade reversa (regiões mais
+  violentas naturalmente têm mais atividade policial), e o MVP não tem como isolar esse efeito
+  sem um método mais robusto (ex.: modelo de painel com efeitos fixos por CISP), que não cheguei
+  a implementar.
 
-* Investigar com maior profundidade a origem da divergência de aproximadamente `0,45%` encontrada entre `letalidade_violenta` e a soma dos seus quatro componentes documentados, observada principalmente em registros de outubro e novembro de 2024.
+- **Pergunta 4 (índice de recuperação de veículos):** o índice mistura veículos subtraídos e
+  recuperados no mesmo mês, mesmo sabendo que existe defasagem real entre o furto/roubo e a
+  recuperação (por isso o índice passa de 1 em 9,42% dos casos). Não consegui reformular o
+  cálculo para rastrear coortes de veículos ao longo do tempo — o índice atual é uma
+  aproximação agregada, não um acompanhamento individual.
 
-* Automatizar a atualização mensal do pipeline conforme o ISP-RJ publica novos boletins.
+- **Pergunta 5 (feminicídio):** a janela útil de dados (out/2024 em diante) acabou sendo mais
+  curta do que o esperado quando desenhei a pergunta original — não é suficiente para
+  identificar uma tendência de longo prazo, só um acompanhamento inicial. Isso só ficou claro
+  depois de investigar os nulos a fundo, o que me obrigou a reduzir o escopo temporal da
+  pergunta no meio do projeto.
 
-* Desenvolvimento de mais análises sobre cada coluna da tabela.
+- **Pergunta 6 (sazonalidade):** o padrão encontrado é parcial — nenhum mês concentra o pico em
+  todos os anos, só com maior frequência relativa (janeiro e março). Não aprofundei em por que
+  esses meses especificamente se repetem (não investiguei hipóteses como período de férias ou
+  fatores econômicos sazonais).
+
+- **Divergência de 0,45% em `letalidade_violenta`:** identifiquei e documentei a inconsistência
+  entre o indicador oficial e a soma dos seus componentes, mas não consegui investigar a causa
+  raiz dentro do prazo do MVP — fica registrada como uma divergência da própria fonte, sem
+  explicação definitiva.
+
+- **Modelagem sem `dim_cisp`:** a decisão de remover essa dimensão resolveu o problema de
+  simplicidade, mas manteve uma limitação real: não existe chave direta entre
+  `fato_criminalidade_cisp` e `dim_municipio`, o que impede alguns cruzamentos que exigiriam o
+  código IBGE do município a partir do grão CISP.
+
+### Dificuldades encontradas
+
+A maior dificuldade durante o desenvolvimento foi trabalhar com PySpark e entender como
+organizar corretamente as transformações entre as camadas. No início, montar as tabelas Silver
+e Gold exigiu bastante atenção, principalmente para definir as chaves, fazer os tratamentos sem
+perder informação e entender como os dados deveriam chegar até a etapa de análise.
+
+Outra dificuldade importante foi a qualidade da base original. Algumas tabelas estavam bastante
+desorganizadas e apresentavam problemas como duplicidades, valores nulos, diferenças de tipo,
+campos com vírgula como separador decimal e problemas de encoding. Na base por CISP, por
+exemplo, foi necessário entender o campo `fase` para identificar por que existiam registros
+repetidos e manter a versão mais atualizada de cada um. Também foi necessário corrigir o nome
+de Grande Niterói, que aparecia com problemas de codificação — um problema que não apareceu em
+nenhuma checagem de nulos e só foi encontrado ao inspecionar os valores distintos do campo.
+
+Esses problemas fizeram da etapa Silver uma das partes mais trabalhosas do projeto, pois foi
+necessário limpar, padronizar e validar os dados antes de utilizá-los. Na Gold, a principal
+dificuldade foi transformar essas tabelas já tratadas em uma estrutura que realmente ajudasse a
+responder às perguntas, criando as dimensões, as tabelas fato e as métricas derivadas utilizadas
+nas análises — decidir, por exemplo, se uma métrica deveria ser calculada a partir de
+componentes atômicos ou de um campo já pronto da fonte (caso de `crimes_violentos` vs.
+`letalidade_violenta`) exigiu entender a fundo o que cada indicador realmente representa, não
+só copiar colunas.
+
+Apesar das dificuldades, o trabalho ajudou a entender melhor a função de cada camada da
+arquitetura Medalhão e a importância de não realizar apenas transformações técnicas, mas também
+validar se os dados fazem sentido antes de utilizá-los em uma análise.
+
+## Trabalhos futuros
+
+- Incorporar dados de população por município (IBGE) para normalizar comparações regionais na
+  pergunta 1 sem o viés de tamanho populacional.
+- Ampliar a identificação das CISPs, criando uma tabela de correspondência completa entre
+  código da CISP e nome da delegacia (neste MVP, feito apenas para as 5 CISPs da pergunta 2).
+- Investigar a causalidade da pergunta 3 com métodos mais robustos (ex.: modelos de painel com
+  efeitos fixos por CISP).
+- Investigar com maior profundidade a origem da divergência de ~0,45% entre `letalidade_violenta`
+  e seus quatro componentes documentados.
+- Reformular `indice_recuperacao_veiculos` para rastrear coortes de veículos ao longo de vários
+  meses, em vez de comparar subtrações e recuperações apenas dentro do mesmo mês.
+- Revisitar a pergunta 5 quando houver mais anos de dado disponível, para avaliar tendência de
+  longo prazo em vez de apenas o acompanhamento inicial possível hoje.
+- Automatizar a atualização mensal do pipeline conforme o ISP-RJ publica novos boletins.
+
+![image_1790559507621.png](./image_1790559507621.png "image_1790559507621.png")
+
 

@@ -1457,7 +1457,7 @@ Esse resultado reforça a evidência de concentração geográfica observada na 
 </p>
 
 <p align="justify">
-&emsp;&emsp;A correlação geral encontrada foi de <strong>0,528</strong>, indicando uma associação positiva de magnitude moderada entre as duas variáveis. Isso significa que, nos dados analisados, meses com maior atividade policial tendem a estar associados a maiores volumes de crimes patrimoniais no mês seguinte.
+&emsp;&emsp;O coeficiente de correlação de Pearson encontrado foi de <strong>0,528</strong>, indicando uma associação positiva de magnitude moderada entre as duas variáveis. Isso significa que, nos dados analisados, meses com maior atividade policial tendem a estar associados a maiores volumes de crimes patrimoniais no mês seguinte.
 </p>
 
 A correlação por região foi:

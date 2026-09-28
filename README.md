@@ -1667,8 +1667,8 @@ Dessa forma, o pipeline permitiu transformar as bases públicas do ISP-RJ em uma
 
 De forma geral, considero que os objetivos centrais do MVP foram atingidos: foi possível
 construir um pipeline completo no Databricks, passando pelas camadas Bronze, Silver e Gold,
-organizar os dados em tabelas fato e dimensão, e responder — mesmo que parcialmente em
-alguns casos — às seis perguntas de negócio propostas no início do trabalho.
+organizar os dados em tabelas fato e dimensão, e responder, mesmo que parcialmente em
+alguns casos às seis perguntas de negócio propostas no início do trabalho.
 
 ### Objetivos atingidos
 
@@ -1678,7 +1678,7 @@ atividade policial e crimes do mês seguinte, analisar o índice de recuperaçã
 acompanhar os registros de feminicídio e tentativa de feminicídio, e verificar a repetição de
 meses com maiores registros de roubo de rua e roubo a comércio. Em paralelo, o pipeline
 incorporou validações automáticas de schema e duplicidade, checagens de consistência entre
-indicadores compostos e uma análise estatística de outliers — indo além do mínimo pedido para
+indicadores compostos e uma análise estatística de outliers. Indo além do mínimo pedido para
 a etapa de Qualidade de Dados.
 
 ### Objetivos não atingidos e limitações
@@ -1686,7 +1686,7 @@ a etapa de Qualidade de Dados.
 
 - **Pergunta 1 (crimes violentos por região):** a comparação entre regiões ficou limitada a
   valores absolutos. Não normalizei por população nem pela quantidade de CISPs de cada
-  região, então não dá para afirmar que a Capital é objetivamente "pior" que o Interior —
+  região, então não dá para afirmar que a Capital é objetivamente "pior" que o Interior,
   apenas que registra mais ocorrências em números absolutos. Faltou incorporar dados de
   população do IBGE, que eu sabia desde o início que seriam necessários para uma comparação
   justa, mas não priorizei dentro do prazo do MVP.
@@ -1696,8 +1696,8 @@ a etapa de Qualidade de Dados.
   e nome de delegacia, então o resultado fica pouco legível para quem não conhece os códigos
   de cor.
 
-- **Pergunta 3 (atividade policial x crime do mês seguinte):** não consegui — e sabia desde o
-  desenho da pergunta que não conseguiria, com os dados disponíveis — estabelecer causalidade.
+- **Pergunta 3 (atividade policial x crime do mês seguinte):** não consegui e sabia desde o
+  desenho da pergunta que não conseguiria, com os dados disponíveis era dificíl estabelecer causalidade.
   A correlação de 0,528 pode ser inteiramente explicada por causalidade reversa (regiões mais
   violentas naturalmente têm mais atividade policial), e o MVP não tem como isolar esse efeito
   sem um método mais robusto (ex.: modelo de painel com efeitos fixos por CISP), que não cheguei
@@ -1705,24 +1705,22 @@ a etapa de Qualidade de Dados.
 
 - **Pergunta 4 (índice de recuperação de veículos):** o índice mistura veículos subtraídos e
   recuperados no mesmo mês, mesmo sabendo que existe defasagem real entre o furto/roubo e a
-  recuperação (por isso o índice passa de 1 em 9,42% dos casos). Não consegui reformular o
-  cálculo para rastrear coortes de veículos ao longo do tempo — o índice atual é uma
-  aproximação agregada, não um acompanhamento individual.
+  recuperação (por isso o índice passa de 1 em 9,42% dos casos). Não consegui reformular o cálculo para acompanhar individualmente os veículos subtraídos e verificar em que período cada um foi recuperado. Por isso, o índice atual é uma aproximação         agregada, baseada apenas nas quantidades mensais de veículos subtraídos e recuperados.
 
 - **Pergunta 5 (feminicídio):** a janela útil de dados (out/2024 em diante) acabou sendo mais
-  curta do que o esperado quando desenhei a pergunta original — não é suficiente para
+  curta do que o esperado quando desenhei a pergunta original.  Não é suficiente para
   identificar uma tendência de longo prazo, só um acompanhamento inicial. Isso só ficou claro
   depois de investigar os nulos a fundo, o que me obrigou a reduzir o escopo temporal da
   pergunta no meio do projeto.
 
-- **Pergunta 6 (sazonalidade):** o padrão encontrado é parcial — nenhum mês concentra o pico em
+- **Pergunta 6 (sazonalidade):** o padrão encontrado é parcial, nenhum mês concentra o pico em
   todos os anos, só com maior frequência relativa (janeiro e março). Não aprofundei em por que
   esses meses especificamente se repetem (não investiguei hipóteses como período de férias ou
   fatores econômicos sazonais).
 
 - **Divergência de 0,45% em `letalidade_violenta`:** identifiquei e documentei a inconsistência
   entre o indicador oficial e a soma dos seus componentes, mas não consegui investigar a causa
-  raiz dentro do prazo do MVP — fica registrada como uma divergência da própria fonte, sem
+  raiz dentro do prazo do MVP. Fica registrada como uma divergência da própria fonte, sem
   explicação definitiva.
 
 - **Modelagem sem `dim_cisp`:** a decisão de remover essa dimensão resolveu o problema de
@@ -1756,7 +1754,8 @@ só copiar colunas.
 
 Apesar das dificuldades, o trabalho ajudou a entender melhor a função de cada camada da
 arquitetura Medalhão e a importância de não realizar apenas transformações técnicas, mas também
-validar se os dados fazem sentido antes de utilizá-los em uma análise.
+validar se os dados fazem sentido antes de utilizá-los em uma análise, e também a entender como
+é o entendimento das pessoas que fazem essas tabelas.
 
 ## Trabalhos futuros
 
@@ -1774,6 +1773,5 @@ validar se os dados fazem sentido antes de utilizá-los em uma análise.
   longo prazo em vez de apenas o acompanhamento inicial possível hoje.
 - Automatizar a atualização mensal do pipeline conforme o ISP-RJ publica novos boletins.
 
-![image_1790559507621.png](./image_1790559507621.png "image_1790559507621.png")
 
 
